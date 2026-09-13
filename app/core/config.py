@@ -6,7 +6,6 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://twistfit:twistfit@localhost:5432/twistfit_dev"
     jwt_secret: str = "dev-only-insecure-jwt-secret"
-    auth_cookie_secret: str = "dev-only-insecure-secret"
     cors_origins: str = "http://localhost:3000"
     cookie_domain: str | None = None
     cookie_secure: bool = False

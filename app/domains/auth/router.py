@@ -2,13 +2,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import (
-    ACCESS_TOKEN_TTL_SECONDS,
-    LEGACY_SESSION_COOKIE_NAME,
-    LEGACY_SESSION_TTL_SECONDS,
-    REFRESH_TOKEN_TTL_SECONDS,
-    create_legacy_session_cookie_value,
-)
+from app.core.security import ACCESS_TOKEN_TTL_SECONDS, REFRESH_TOKEN_TTL_SECONDS
 from app.db.session import get_db
 from app.deps import get_current_user
 from app.domains.auth import service
@@ -18,7 +12,7 @@ from app.domains.auth.schemas import AccountResponse, LoginRequest, RegisterRequ
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-def _set_auth_cookies(response: Response, user: User, access_token: str, refresh_token: str) -> None:
+def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
     response.set_cookie(
         "access_token", access_token, httponly=True, secure=settings.cookie_secure, samesite="lax",
         domain=settings.cookie_domain, max_age=ACCESS_TOKEN_TTL_SECONDS, path="/",
@@ -27,15 +21,10 @@ def _set_auth_cookies(response: Response, user: User, access_token: str, refresh
         "refresh_token", refresh_token, httponly=True, secure=settings.cookie_secure, samesite="lax",
         domain=settings.cookie_domain, max_age=REFRESH_TOKEN_TTL_SECONDS, path="/",
     )
-    response.set_cookie(
-        LEGACY_SESSION_COOKIE_NAME, create_legacy_session_cookie_value(user.email, user.role),
-        httponly=True, secure=settings.cookie_secure, samesite="lax",
-        domain=settings.cookie_domain, max_age=LEGACY_SESSION_TTL_SECONDS, path="/",
-    )
 
 
 def _clear_auth_cookies(response: Response) -> None:
-    for name in ("access_token", "refresh_token", LEGACY_SESSION_COOKIE_NAME):
+    for name in ("access_token", "refresh_token"):
         response.delete_cookie(name, domain=settings.cookie_domain, path="/")
 
 
@@ -54,7 +43,7 @@ def login(body: LoginRequest, response: Response, db: Session = Depends(get_db))
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CREDENTIALS")
 
     access_token, refresh_token = service.issue_tokens(db, user)
-    _set_auth_cookies(response, user, access_token, refresh_token)
+    _set_auth_cookies(response, access_token, refresh_token)
     return user
 
 
@@ -84,7 +73,7 @@ def refresh(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_REFRESH_TOKEN")
 
     new_access_token, new_refresh_token, user = rotated
-    _set_auth_cookies(response, user, new_access_token, new_refresh_token)
+    _set_auth_cookies(response, new_access_token, new_refresh_token)
     return user
 
 

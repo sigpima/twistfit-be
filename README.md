@@ -34,11 +34,3 @@ To add tables for a new domain: add
 
 Protect an authenticated route with `Depends(app.deps.get_current_user)`;
 protect an admin-only route with `Depends(app.deps.require_admin)`.
-
-## Legacy bridge — remove only once forum, quiz-attempts, and every other
-## still-Next.js domain has its own migration phase
-
-`/auth/login` and `/auth/logout` also manage a legacy `twistfit_session`
-cookie (see `app/core/security.py::create_legacy_session_cookie_value`) so
-the 10 domains not yet migrated off Next.js/SQLite keep working. Do not
-remove this, or `AUTH_COOKIE_SECRET`, until those domains are migrated.

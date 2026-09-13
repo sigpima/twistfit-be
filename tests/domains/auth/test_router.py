@@ -26,7 +26,6 @@ def test_login_sets_cookies_and_returns_account(client):
     assert response.json() == {"name": "Linh", "email": "login@example.com", "role": "user"}
     assert "access_token" in response.cookies
     assert "refresh_token" in response.cookies
-    assert "twistfit_session" in response.cookies
 
 
 def test_login_rejects_wrong_password(client):
