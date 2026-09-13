@@ -11,6 +11,7 @@ from app.domains.faq.router import router as faq_router
 from app.domains.faq.seed import seed_demo_faq_items
 from app.domains.team.router import router as team_router
 from app.domains.team.seed import seed_demo_team_members
+from app.domains.model_catalog.router import router as model_catalog_router
 from app.domains.model_catalog.seed import seed_demo_models
 
 @asynccontextmanager
@@ -39,6 +40,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(faq_router)
 app.include_router(team_router)
+app.include_router(model_catalog_router)
 
 
 @app.get("/health")
