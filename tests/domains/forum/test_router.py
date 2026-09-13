@@ -167,3 +167,165 @@ def test_delete_post_forbidden_for_non_owner_non_admin(client):
 def test_delete_post_returns_404_when_missing(client):
     _register_and_login(client, "forum-owner10@example.com")
     assert client.delete("/forum/posts/999999").status_code == 404
+
+
+def test_update_post_status_requires_authentication(client):
+    assert client.patch("/forum/posts/1", json={"status": "published"}).status_code == 401
+
+
+def test_update_post_status_requires_admin(client):
+    _register_and_login(client, "forum-status-user@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    response = client.patch(f"/forum/posts/{post['id']}", json={"status": "published"})
+    assert response.status_code == 403
+
+
+def test_update_post_status_allows_pending_to_published(client, db_session):
+    _register_and_login(client, "forum-status1@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _promote_to_admin_and_relogin(client, db_session, "forum-status1@example.com")
+
+    response = client.patch(f"/forum/posts/{post['id']}", json={"status": "published"})
+    assert response.status_code == 200
+    assert response.json()["status"] == "published"
+
+
+def test_update_post_status_allows_pending_to_rejected(client, db_session):
+    _register_and_login(client, "forum-status2@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _promote_to_admin_and_relogin(client, db_session, "forum-status2@example.com")
+
+    response = client.patch(f"/forum/posts/{post['id']}", json={"status": "rejected"})
+    assert response.status_code == 200
+    assert response.json()["status"] == "rejected"
+
+
+def test_update_post_status_allows_published_to_hidden(client, db_session):
+    _register_and_login(client, "forum-status3@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _promote_to_admin_and_relogin(client, db_session, "forum-status3@example.com")
+    client.patch(f"/forum/posts/{post['id']}", json={"status": "published"})
+
+    response = client.patch(f"/forum/posts/{post['id']}", json={"status": "hidden"})
+    assert response.status_code == 200
+    assert response.json()["status"] == "hidden"
+
+
+def test_update_post_status_rejects_an_invalid_transition(client, db_session):
+    _register_and_login(client, "forum-status4@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _promote_to_admin_and_relogin(client, db_session, "forum-status4@example.com")
+
+    response = client.patch(f"/forum/posts/{post['id']}", json={"status": "hidden"})
+    assert response.status_code == 409
+    assert response.json()["detail"] == "INVALID_STATUS_TRANSITION"
+
+
+def test_update_post_status_rejects_transition_from_a_terminal_status(client, db_session):
+    _register_and_login(client, "forum-status5@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _promote_to_admin_and_relogin(client, db_session, "forum-status5@example.com")
+    client.patch(f"/forum/posts/{post['id']}", json={"status": "rejected"})
+
+    response = client.patch(f"/forum/posts/{post['id']}", json={"status": "published"})
+    assert response.status_code == 409
+
+
+def test_update_post_status_rejects_an_invalid_status_value(client, db_session):
+    _register_and_login(client, "forum-status6@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _promote_to_admin_and_relogin(client, db_session, "forum-status6@example.com")
+
+    response = client.patch(f"/forum/posts/{post['id']}", json={"status": "not-a-status"})
+    assert response.status_code == 422
+
+
+def test_update_post_status_returns_404_when_missing(client, db_session):
+    _register_and_login(client, "forum-status7@example.com")
+    _promote_to_admin_and_relogin(client, db_session, "forum-status7@example.com")
+    assert client.patch("/forum/posts/999999", json={"status": "published"}).status_code == 404
+
+
+def test_create_report_requires_authentication(client):
+    assert client.post("/forum/posts/1/report", json={"reason": "Spam"}).status_code == 401
+
+
+def test_create_report_succeeds_for_a_visible_post(client, db_session):
+    _register_and_login(client, "forum-report-owner@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _promote_to_admin_and_relogin(client, db_session, "forum-report-owner@example.com")
+    client.patch(f"/forum/posts/{post['id']}", json={"status": "published"})
+
+    _register_and_login(client, "forum-reporter@example.com")
+    response = client.post(f"/forum/posts/{post['id']}/report", json={"reason": "Spam"})
+    assert response.status_code == 201
+    assert response.json()["postId"] == post["id"]
+    assert response.json()["status"] == "open"
+
+
+def test_create_report_returns_404_for_a_non_visible_post(client):
+    _register_and_login(client, "forum-report-owner2@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+
+    _register_and_login(client, "forum-reporter2@example.com")
+    response = client.post(f"/forum/posts/{post['id']}/report", json={"reason": "Spam"})
+    assert response.status_code == 404
+
+
+def test_create_report_rejects_a_blank_reason(client):
+    _register_and_login(client, "forum-report-owner3@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    response = client.post(f"/forum/posts/{post['id']}/report", json={"reason": "   "})
+    assert response.status_code == 422
+
+
+def test_moderation_pending_requires_admin(client):
+    assert client.get("/forum/moderation/pending").status_code == 401
+
+
+def test_moderation_pending_lists_pending_posts(client, db_session):
+    _register_and_login(client, "forum-mod-pending@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _promote_to_admin_and_relogin(client, db_session, "forum-mod-pending@example.com")
+
+    response = client.get("/forum/moderation/pending")
+    assert response.status_code == 200
+    assert any(p["id"] == post["id"] for p in response.json())
+
+
+def test_moderation_reports_requires_admin(client):
+    assert client.get("/forum/moderation/reports").status_code == 401
+
+
+def test_moderation_reports_lists_open_reports_with_post_info(client, db_session):
+    _register_and_login(client, "forum-mod-reports@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    client.post(f"/forum/posts/{post['id']}/report", json={"reason": "Spam"})
+    _promote_to_admin_and_relogin(client, db_session, "forum-mod-reports@example.com")
+
+    response = client.get("/forum/moderation/reports")
+    assert response.status_code == 200
+    report = next(r for r in response.json() if r["postId"] == post["id"])
+    assert report["postTitle"] == VALID_BODY["title"]
+    assert report["postStatus"] == "pending"
+
+
+def test_resolve_report_requires_admin(client):
+    assert client.patch("/forum/reports/1").status_code == 401
+
+
+def test_resolve_report_marks_it_resolved(client, db_session):
+    _register_and_login(client, "forum-resolve@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    report = client.post(f"/forum/posts/{post['id']}/report", json={"reason": "Spam"}).json()
+    _promote_to_admin_and_relogin(client, db_session, "forum-resolve@example.com")
+
+    response = client.patch(f"/forum/reports/{report['id']}")
+    assert response.status_code == 200
+    assert response.json()["status"] == "resolved"
+
+
+def test_resolve_report_returns_404_when_missing(client, db_session):
+    _register_and_login(client, "forum-resolve2@example.com")
+    _promote_to_admin_and_relogin(client, db_session, "forum-resolve2@example.com")
+    assert client.patch("/forum/reports/999999").status_code == 404
