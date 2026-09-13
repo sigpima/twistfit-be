@@ -2,7 +2,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.security import create_access_token
-from app.deps import get_current_user, require_admin
+from app.deps import get_current_user, get_current_user_optional, require_admin
 from app.domains.auth import service
 
 
@@ -49,3 +49,29 @@ def test_require_admin_accepts_admin(db_session):
         db_session, name="A", email="deps4@example.com", password="password123", role="admin"
     )
     assert require_admin(user=user).id == user.id
+
+
+def test_get_current_user_optional_returns_none_for_missing_cookie(db_session):
+    assert get_current_user_optional(access_token=None, db=db_session) is None
+
+
+def test_get_current_user_optional_returns_none_for_invalid_token(db_session):
+    assert get_current_user_optional(access_token="garbage", db=db_session) is None
+
+
+def test_get_current_user_optional_returns_user_for_valid_token(db_session):
+    user = service.create_user(db_session, name="A", email="deps-optional@example.com", password="password123")
+    token = create_access_token(user_id=user.id, role=user.role)
+
+    result = get_current_user_optional(access_token=token, db=db_session)
+    assert result is not None
+    assert result.id == user.id
+
+
+def test_get_current_user_optional_returns_none_for_inactive_user(db_session):
+    user = service.create_user(db_session, name="A", email="deps-optional2@example.com", password="password123")
+    token = create_access_token(user_id=user.id, role=user.role)
+    user.is_active = False
+    db_session.commit()
+
+    assert get_current_user_optional(access_token=token, db=db_session) is None

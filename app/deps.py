@@ -30,3 +30,21 @@ def require_admin(user: Annotated[User, Depends(get_current_user)]) -> User:
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return user
+
+
+def get_current_user_optional(
+    access_token: Annotated[str | None, Cookie()] = None,
+    db: Session = Depends(get_db),
+) -> User | None:
+    if access_token is None:
+        return None
+
+    payload = decode_access_token(access_token)
+    if payload is None:
+        return None
+
+    user = db.get(User, int(payload["sub"]))
+    if user is None or not user.is_active:
+        return None
+
+    return user
