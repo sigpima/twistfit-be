@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.db.session import SessionLocal
 from app.domains.auth.router import router as auth_router
 from app.domains.auth.seed import seed_demo_users
+from app.domains.faq.seed import seed_demo_faq_items
 
 
 @asynccontextmanager
@@ -14,6 +15,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         seed_demo_users(db)
+        seed_demo_faq_items(db)
     finally:
         db.close()
     yield

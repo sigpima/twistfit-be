@@ -10,6 +10,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from app.core.config import settings
 from app.db.session import Base
 from app.domains.auth import models as auth_models  # noqa: F401
+from app.domains.faq import models as faq_models  # noqa: F401
 
 config = context.config
 if not config.get_main_option("sqlalchemy.url"):
