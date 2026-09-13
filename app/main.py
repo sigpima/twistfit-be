@@ -17,6 +17,7 @@ from app.domains.capsule_wardrobe.router import router as capsule_wardrobe_route
 from app.domains.capsule_wardrobe.seed import seed_demo_capsule_sets
 from app.domains.blog.router import router as blog_router
 from app.domains.blog.seed import seed_demo_blog_posts
+from app.domains.quiz.router import router as quiz_router
 from app.domains.quiz.seed import seed_demo_quiz_questions
 
 @asynccontextmanager
@@ -51,6 +52,7 @@ app.include_router(team_router)
 app.include_router(model_catalog_router)
 app.include_router(capsule_wardrobe_router)
 app.include_router(blog_router)
+app.include_router(quiz_router)
 
 
 @app.get("/health")
