@@ -17,6 +17,7 @@ from app.domains.capsule_wardrobe.router import router as capsule_wardrobe_route
 from app.domains.capsule_wardrobe.seed import seed_demo_capsule_sets
 from app.domains.blog.router import router as blog_router
 from app.domains.blog.seed import seed_demo_blog_posts
+from app.domains.quiz.seed import seed_demo_quiz_questions
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,6 +29,7 @@ async def lifespan(app: FastAPI):
         seed_demo_models(db)
         seed_demo_capsule_sets(db)
         seed_demo_blog_posts(db)
+        seed_demo_quiz_questions(db)
     finally:
         db.close()
     yield

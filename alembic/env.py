@@ -15,6 +15,7 @@ from app.domains.team import models as team_models  # noqa: F401
 from app.domains.model_catalog import models as model_catalog_models  # noqa: F401
 from app.domains.capsule_wardrobe import models as capsule_wardrobe_models  # noqa: F401
 from app.domains.blog import models as blog_models  # noqa: F401
+from app.domains.quiz import models as quiz_models  # noqa: F401
 
 config = context.config
 if not config.get_main_option("sqlalchemy.url"):
