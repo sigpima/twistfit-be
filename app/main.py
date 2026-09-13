@@ -15,6 +15,7 @@ from app.domains.model_catalog.router import router as model_catalog_router
 from app.domains.model_catalog.seed import seed_demo_models
 from app.domains.capsule_wardrobe.router import router as capsule_wardrobe_router
 from app.domains.capsule_wardrobe.seed import seed_demo_capsule_sets
+from app.domains.blog.seed import seed_demo_blog_posts
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,6 +26,7 @@ async def lifespan(app: FastAPI):
         seed_demo_team_members(db)
         seed_demo_models(db)
         seed_demo_capsule_sets(db)
+        seed_demo_blog_posts(db)
     finally:
         db.close()
     yield
