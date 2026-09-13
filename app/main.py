@@ -15,6 +15,7 @@ from app.domains.model_catalog.router import router as model_catalog_router
 from app.domains.model_catalog.seed import seed_demo_models
 from app.domains.capsule_wardrobe.router import router as capsule_wardrobe_router
 from app.domains.capsule_wardrobe.seed import seed_demo_capsule_sets
+from app.domains.blog.router import router as blog_router
 from app.domains.blog.seed import seed_demo_blog_posts
 
 @asynccontextmanager
@@ -47,6 +48,7 @@ app.include_router(faq_router)
 app.include_router(team_router)
 app.include_router(model_catalog_router)
 app.include_router(capsule_wardrobe_router)
+app.include_router(blog_router)
 
 
 @app.get("/health")
