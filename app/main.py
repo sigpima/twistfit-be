@@ -10,7 +10,8 @@ from app.domains.auth.seed import seed_demo_users
 from app.domains.faq.router import router as faq_router
 from app.domains.faq.seed import seed_demo_faq_items
 
-
+print("--------------")
+print(settings.model_dump())
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db = SessionLocal()
