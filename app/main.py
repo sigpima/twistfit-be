@@ -1,10 +1,25 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.db.session import SessionLocal
 from app.domains.auth.router import router as auth_router
+from app.domains.auth.seed import seed_demo_users
 
-app = FastAPI(title="TwistFit API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    db = SessionLocal()
+    try:
+        seed_demo_users(db)
+    finally:
+        db.close()
+    yield
+
+
+app = FastAPI(title="TwistFit API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
