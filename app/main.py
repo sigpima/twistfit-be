@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.db.session import SessionLocal
 from app.domains.auth.router import router as auth_router
 from app.domains.auth.seed import seed_demo_users
+from app.domains.faq.router import router as faq_router
 from app.domains.faq.seed import seed_demo_faq_items
 
 
@@ -32,6 +33,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(faq_router)
 
 
 @app.get("/health")
