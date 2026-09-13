@@ -21,6 +21,7 @@ from app.domains.quiz.router import router as quiz_router
 from app.domains.quiz.seed import seed_demo_quiz_questions
 from app.domains.contact.router import router as contact_router
 from app.domains.quiz_attempts.router import router as quiz_attempts_router
+from app.domains.forum.router import router as forum_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,6 +58,7 @@ app.include_router(blog_router)
 app.include_router(quiz_router)
 app.include_router(contact_router)
 app.include_router(quiz_attempts_router)
+app.include_router(forum_router)
 
 
 @app.get("/health")
