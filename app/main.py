@@ -9,6 +9,7 @@ from app.domains.auth.router import router as auth_router
 from app.domains.auth.seed import seed_demo_users
 from app.domains.faq.router import router as faq_router
 from app.domains.faq.seed import seed_demo_faq_items
+from app.domains.team.router import router as team_router
 from app.domains.team.seed import seed_demo_team_members
 
 @asynccontextmanager
@@ -35,6 +36,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(faq_router)
+app.include_router(team_router)
 
 
 @app.get("/health")
