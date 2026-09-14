@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     cookie_domain: str | None = None
     cookie_secure: bool = False
     gemini_api_key: str = "dev-only-placeholder-gemini-key"
+    catvton_service_url: str = "http://localhost:8001"
+    catvton_api_key: str = "dev-only-placeholder-catvton-key"
     azure_storage_connection_string: str = (
         "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;"
         "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
