@@ -17,6 +17,7 @@ class TryOnJob(Base):
     catalog_model_id: Mapped[int] = mapped_column(Integer, nullable=False)
     occasion: Mapped[str] = mapped_column(String(100), nullable=False)
     style: Mapped[str] = mapped_column(String(100), nullable=False)
+    pose: Mapped[str] = mapped_column(String(20), nullable=False, default="front")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     result_blob_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

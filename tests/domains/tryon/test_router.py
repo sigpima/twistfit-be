@@ -64,3 +64,56 @@ def test_get_job_404s_for_another_users_job(client, db_session):
 
     response = client.get(f"/tryon/{job_id}")
     assert response.status_code == 404
+
+
+def _seed_catalog_model_with_side_image(db_session) -> CatalogModel:
+    model = CatalogModel(
+        name="Test Model",
+        image="/outfit/models/test-front.jpg",
+        dossier_image="/outfit/models/test-front.jpg",
+        side_image="/outfit/models/test-side.jpg",
+        pose_count=1,
+        tagline="Test",
+        undertone="warm",
+        height="1m70",
+        body_shape="Test",
+        waist="60cm",
+        personal_color="Autumn Warm",
+    )
+    db_session.add(model)
+    db_session.commit()
+    db_session.refresh(model)
+    return model
+
+
+def test_create_job_defaults_pose_to_front(client, db_session):
+    _login(client, "tryon-pose-1@example.com")
+    model = _seed_catalog_model(db_session)
+
+    response = client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay", "style": "casual"})
+
+    assert response.status_code == 201
+    assert response.json()["pose"] == "front"
+
+
+def test_create_job_accepts_an_explicit_pose(client, db_session):
+    _login(client, "tryon-pose-2@example.com")
+    model = _seed_catalog_model_with_side_image(db_session)
+
+    response = client.post(
+        "/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay", "style": "casual", "pose": "side"}
+    )
+
+    assert response.status_code == 201
+    assert response.json()["pose"] == "side"
+
+
+def test_create_job_rejects_an_invalid_pose(client, db_session):
+    _login(client, "tryon-pose-3@example.com")
+    model = _seed_catalog_model(db_session)
+
+    response = client.post(
+        "/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay", "style": "casual", "pose": "flying"}
+    )
+
+    assert response.status_code == 422

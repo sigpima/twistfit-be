@@ -36,8 +36,9 @@ def create_tryon_job(
     )
     season = latest_attempt.season if latest_attempt else "spring"
 
-    job = service.create_job(db, user.id, body.catalog_model_id, body.occasion, body.style)
-    background_tasks.add_task(_process_job_with_fresh_session, job.id, season, catalog_model.image)
+    job = service.create_job(db, user.id, body.catalog_model_id, body.occasion, body.style, body.pose)
+    person_image_url = catalog_model.side_image if body.pose == "side" and catalog_model.side_image else catalog_model.image
+    background_tasks.add_task(_process_job_with_fresh_session, job.id, season, person_image_url)
     return job
 
 

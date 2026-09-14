@@ -7,12 +7,15 @@ from app.domains.tryon.models import TryOnJob
 from app.domains.wardrobe.models import WardrobeItem
 
 
-def create_job(db: Session, user_id: int, catalog_model_id: int, occasion: str, style: str) -> TryOnJob:
+def create_job(
+    db: Session, user_id: int, catalog_model_id: int, occasion: str, style: str, pose: str = "front"
+) -> TryOnJob:
     job = TryOnJob(
         user_id=user_id,
         catalog_model_id=catalog_model_id,
         occasion=occasion,
         style=style,
+        pose=pose,
         status="pending",
     )
     db.add(job)
