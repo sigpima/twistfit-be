@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     cookie_domain: str | None = None
     cookie_secure: bool = False
+    gemini_api_key: str = "dev-only-placeholder-gemini-key"
     azure_storage_connection_string: str = (
         "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;"
         "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
