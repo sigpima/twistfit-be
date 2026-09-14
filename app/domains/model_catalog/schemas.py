@@ -46,6 +46,7 @@ class CatalogModelResponse(CamelModel):
     name: str
     image: str
     dossier_image: str
+    side_image: str | None
     pose_count: int
     tagline: str
     undertone: str

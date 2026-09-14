@@ -13,6 +13,7 @@ class CatalogModel(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     image: Mapped[str] = mapped_column(String(500), nullable=False)
     dossier_image: Mapped[str] = mapped_column(String(500), nullable=False)
+    side_image: Mapped[str | None] = mapped_column(String(500), nullable=True)
     pose_count: Mapped[int] = mapped_column(Integer, nullable=False)
     tagline: Mapped[str] = mapped_column(String(255), nullable=False)
     undertone: Mapped[str] = mapped_column(String(20), nullable=False)

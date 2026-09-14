@@ -8,6 +8,7 @@ def test_seed_demo_models_creates_twelve_models(db_session):
     assert len(models) == 12
     assert models[0].name == "Carmen"
     assert models[0].undertone == "neutral"
+    assert models[0].side_image == models[0].image
 
 
 def test_seed_demo_models_is_idempotent(db_session):

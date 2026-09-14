@@ -70,5 +70,5 @@ def seed_demo_models(db: Session) -> None:
     if db.query(CatalogModel).count() > 0:
         return
     for model in DEMO_MODELS:
-        db.add(CatalogModel(**model))
+        db.add(CatalogModel(**model, side_image=model["image"]))
     db.commit()
