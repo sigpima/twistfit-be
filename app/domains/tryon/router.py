@@ -1,23 +1,44 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.deps import get_current_user
 from app.domains.auth.models import User
 from app.domains.model_catalog.models import CatalogModel
+from app.domains.quiz_attempts.models import QuizAttempt
 from app.domains.tryon import service
 from app.domains.tryon.schemas import TryOnJobCreate, TryOnJobResponse
 
 router = APIRouter(prefix="/tryon", tags=["tryon"])
 
 
+def _process_job_with_fresh_session(job_id: int, season: str, catalog_model_image_url: str) -> None:
+    db = SessionLocal()
+    try:
+        service.process_job(db, job_id, season, catalog_model_image_url)
+    finally:
+        db.close()
+
+
 @router.post("", response_model=TryOnJobResponse, status_code=status.HTTP_201_CREATED)
-def create_tryon_job(body: TryOnJobCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def create_tryon_job(
+    body: TryOnJobCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     catalog_model = db.get(CatalogModel, body.catalog_model_id)
     if catalog_model is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy model")
 
-    return service.create_job(db, user.id, body.catalog_model_id, body.occasion, body.style)
+    latest_attempt = (
+        db.query(QuizAttempt).filter(QuizAttempt.user_id == user.id).order_by(QuizAttempt.id.desc()).first()
+    )
+    season = latest_attempt.season if latest_attempt else "spring"
+
+    job = service.create_job(db, user.id, body.catalog_model_id, body.occasion, body.style)
+    background_tasks.add_task(_process_job_with_fresh_session, job.id, season, catalog_model.image)
+    return job
 
 
 @router.get("/{job_id}", response_model=TryOnJobResponse)
