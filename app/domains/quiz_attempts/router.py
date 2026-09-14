@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.deps import get_current_user_optional
+from app.deps import get_current_user, get_current_user_optional
 from app.domains.auth.models import User
 from app.domains.quiz_attempts import service
 from app.domains.quiz_attempts.schemas import QuizAttemptCreate, QuizAttemptResponse
@@ -17,3 +17,8 @@ def create_attempt(
     user: User | None = Depends(get_current_user_optional),
 ):
     return service.create_quiz_attempt(db, body.season, user.id if user else None)
+
+
+@router.get("/me", response_model=QuizAttemptResponse | None)
+def get_my_latest_attempt(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return service.get_latest_attempt(db, user.id)

@@ -31,3 +31,31 @@ def test_create_attempt_treats_an_invalid_access_token_as_anonymous(client):
 def test_create_attempt_rejects_an_invalid_season(client):
     response = client.post("/quiz-attempts", json={"season": "not-a-season"})
     assert response.status_code == 422
+
+
+def test_get_me_requires_authentication(client):
+    response = client.get("/quiz-attempts/me")
+    assert response.status_code == 401
+
+
+def test_get_me_returns_null_when_no_attempt_exists(client):
+    client.post("/auth/register", json={"name": "Test", "email": "quiz-me-1@example.com", "password": "password123"})
+    client.post("/auth/login", json={"email": "quiz-me-1@example.com", "password": "password123"})
+
+    response = client.get("/quiz-attempts/me")
+
+    assert response.status_code == 200
+    assert response.json() is None
+
+
+def test_get_me_returns_the_latest_attempt(client):
+    client.post("/auth/register", json={"name": "Test", "email": "quiz-me-2@example.com", "password": "password123"})
+    client.post("/auth/login", json={"email": "quiz-me-2@example.com", "password": "password123"})
+
+    client.post("/quiz-attempts", json={"season": "spring"})
+    client.post("/quiz-attempts", json={"season": "autumn"})
+
+    response = client.get("/quiz-attempts/me")
+
+    assert response.status_code == 200
+    assert response.json()["season"] == "autumn"
