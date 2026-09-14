@@ -48,3 +48,7 @@ class WardrobeItemResponse(CamelModel):
     dominant_colors: list[str]
     created_at: datetime
     updated_at: datetime
+
+
+class SuggestTagsRequest(CamelModel):
+    blob_path: str

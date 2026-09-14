@@ -1,11 +1,16 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.blob_storage import blob_public_url, download_bytes, ensure_container, generate_upload_sas_url
 from app.db.session import get_db
 from app.deps import get_current_user
 from app.domains.auth.models import User
 from app.domains.wardrobe import service
-from app.domains.wardrobe.schemas import WardrobeItemCreate, WardrobeItemResponse
+from app.domains.wardrobe.color_extraction import extract_dominant_colors
+from app.domains.wardrobe.gemini_client import suggest_tags
+from app.domains.wardrobe.schemas import SuggestTagsRequest, WardrobeItemCreate, WardrobeItemResponse
 
 router = APIRouter(prefix="/wardrobe", tags=["wardrobe"])
 
@@ -26,3 +31,19 @@ def get_item(item_id: int, db: Session = Depends(get_db), user: User = Depends(g
 @router.post("/items", response_model=WardrobeItemResponse, status_code=status.HTTP_201_CREATED)
 def create_item(body: WardrobeItemCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return service.create_item(db, user.id, body)
+
+
+@router.post("/upload-url")
+def get_upload_url(user: User = Depends(get_current_user)):
+    ensure_container("wardrobe")
+    blob_path = f"{user.id}/{uuid.uuid4()}.png"
+    upload_url = generate_upload_sas_url("wardrobe", blob_path)
+    return {"uploadUrl": upload_url, "blobPath": blob_path}
+
+
+@router.post("/items/suggest-tags")
+def suggest_tags_endpoint(body: SuggestTagsRequest, user: User = Depends(get_current_user)):
+    image_bytes = download_bytes("wardrobe", body.blob_path)
+    tags = suggest_tags(image_bytes)
+    colors = extract_dominant_colors(image_bytes)
+    return {**tags, "dominantColors": colors, "blobUrl": blob_public_url("wardrobe", body.blob_path)}
