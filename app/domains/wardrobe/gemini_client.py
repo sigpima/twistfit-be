@@ -6,7 +6,7 @@ import httpx
 from app.core.config import settings
 from app.domains.wardrobe.schemas import CATEGORIES, OCCASION_TAGS, STYLE_TAGS
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
 
 PROMPT = (
     "Given this clothing image, classify it. Respond with ONLY a JSON "
