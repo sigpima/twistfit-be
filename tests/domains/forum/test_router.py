@@ -534,3 +534,23 @@ def test_bookmark_post_returns_404_for_a_non_visible_post(client):
 def test_bookmark_post_returns_404_for_a_nonexistent_post(client):
     _register_and_login(client, "forum-bookmark-owner3@example.com")
     assert client.post("/forum/posts/999999/bookmark").status_code == 404
+
+
+def test_list_saved_posts_requires_authentication(client):
+    assert client.get("/forum/posts/saved").status_code == 401
+
+
+def test_list_saved_posts_returns_the_caller_bookmarked_posts(client, db_session):
+    _register_and_login(client, "forum-saved-owner@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, post["id"])
+
+    _register_and_login(client, "forum-saved-other@example.com")
+    other_post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, other_post["id"])
+    client.post(f"/forum/posts/{other_post['id']}/bookmark")
+
+    response = client.get("/forum/posts/saved")
+    assert response.status_code == 200
+    assert [p["id"] for p in response.json()] == [other_post["id"]]
+    assert response.json()[0]["bookmarkedByMe"] is True

@@ -58,6 +58,12 @@ def list_my_posts(db: Session = Depends(get_db), user: User = Depends(get_curren
     return [service.build_post_response(db, post, user.id) for post in posts]
 
 
+@router.get("/posts/saved", response_model=list[ForumPostResponse])
+def list_saved_posts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    posts = service.list_saved_posts(db, user.id)
+    return [service.build_post_response(db, post, user.id) for post in posts]
+
+
 @router.get("/posts/{post_id}", response_model=ForumPostResponse)
 def get_post(
     post_id: int,

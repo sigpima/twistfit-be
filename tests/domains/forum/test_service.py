@@ -285,3 +285,28 @@ def test_build_post_response_reflects_bookmarked_by_me(db_session):
     service.toggle_bookmark(db_session, post.id, user.id)
     data = service.build_post_response(db_session, post, viewer_id=user.id)
     assert data["bookmarked_by_me"] is True
+
+
+def test_list_saved_posts_returns_only_the_caller_bookmarked_posts(db_session):
+    user = _make_user(db_session, "forum-svc-saved1@example.com")
+    other = _make_user(db_session, "forum-svc-saved2@example.com")
+    mine = service.create_post(db_session, user.id, VALID_POST)
+    others_post = service.create_post(db_session, other.id, VALID_POST)
+
+    service.toggle_bookmark(db_session, mine.id, user.id)
+    service.toggle_bookmark(db_session, others_post.id, other.id)
+
+    saved = service.list_saved_posts(db_session, user.id)
+    assert [p.id for p in saved] == [mine.id]
+
+
+def test_list_saved_posts_orders_newest_bookmark_first(db_session):
+    user = _make_user(db_session, "forum-svc-saved3@example.com")
+    first = service.create_post(db_session, user.id, VALID_POST)
+    second = service.create_post(db_session, user.id, VALID_POST)
+
+    service.toggle_bookmark(db_session, first.id, user.id)
+    service.toggle_bookmark(db_session, second.id, user.id)
+
+    saved = service.list_saved_posts(db_session, user.id)
+    assert [p.id for p in saved] == [second.id, first.id]

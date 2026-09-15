@@ -28,6 +28,16 @@ def list_posts_by_author(db: Session, author_id: int) -> list[ForumPost]:
     )
 
 
+def list_saved_posts(db: Session, user_id: int) -> list[ForumPost]:
+    return (
+        db.query(ForumPost)
+        .join(ForumBookmark, ForumBookmark.post_id == ForumPost.id)
+        .filter(ForumBookmark.user_id == user_id)
+        .order_by(ForumBookmark.id.desc())
+        .all()
+    )
+
+
 def list_pending_posts(db: Session) -> list[ForumPost]:
     return db.query(ForumPost).filter(ForumPost.status == "pending").order_by(ForumPost.id.asc()).all()
 
