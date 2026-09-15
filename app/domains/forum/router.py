@@ -10,6 +10,8 @@ from app.domains.auth.models import User
 from app.domains.forum import service
 from app.domains.forum.schemas import (
     FORUM_CATEGORIES,
+    ForumCommentCreate,
+    ForumCommentResponse,
     ForumLikeResponse,
     ForumPostCreate,
     ForumPostResponse,
@@ -131,6 +133,45 @@ def like_post(post_id: int, db: Session = Depends(get_db), user: User = Depends(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bài viết")
     liked, like_count = service.toggle_like(db, post_id, user.id)
     return {"liked": liked, "like_count": like_count}
+
+
+@router.post("/posts/{post_id}/comments", response_model=ForumCommentResponse, status_code=status.HTTP_201_CREATED)
+def create_comment(
+    post_id: int,
+    body: ForumCommentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    post = service.get_post(db, post_id)
+    if post is None or not service.can_view_post(post, user.id, user.role):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bài viết")
+    comment = service.create_comment(db, post_id, user.id, body)
+    return service.build_comment_response(comment, user.id, user.role)
+
+
+@router.get("/posts/{post_id}/comments", response_model=list[ForumCommentResponse])
+def list_comments(
+    post_id: int,
+    db: Session = Depends(get_db),
+    viewer: User | None = Depends(get_current_user_optional),
+):
+    post = service.get_post(db, post_id)
+    viewer_id = viewer.id if viewer else None
+    viewer_role = viewer.role if viewer else None
+    if post is None or not service.can_view_post(post, viewer_id, viewer_role):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bài viết")
+    comments = service.list_comments(db, post_id)
+    return [service.build_comment_response(c, viewer_id, viewer_role) for c in comments]
+
+
+@router.delete("/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_comment(comment_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    comment = service.get_comment(db, comment_id)
+    if comment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bình luận")
+    if comment.author_id != user.id and user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền xóa bình luận này")
+    service.delete_comment(db, comment_id)
 
 
 @router.get("/moderation/pending", response_model=list[ForumPostResponse])

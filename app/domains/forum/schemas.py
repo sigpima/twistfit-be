@@ -91,3 +91,26 @@ class ForumReportResponse(CamelModel):
 class ForumLikeResponse(CamelModel):
     liked: bool
     like_count: int
+
+
+class ForumCommentCreate(CamelModel):
+    body: str
+
+    @field_validator("body")
+    @classmethod
+    def body_not_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Nội dung bình luận không được để trống")
+        return stripped
+
+
+class ForumCommentResponse(CamelModel):
+    id: int
+    post_id: int
+    author_id: int
+    author_name: str
+    body: str
+    created_at: datetime
+    updated_at: datetime
+    can_delete: bool

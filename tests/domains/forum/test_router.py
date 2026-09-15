@@ -393,3 +393,111 @@ def test_like_post_returns_404_for_a_non_visible_post(client):
 def test_like_post_returns_404_for_a_nonexistent_post(client):
     _register_and_login(client, "forum-like-owner3@example.com")
     assert client.post("/forum/posts/999999/like").status_code == 404
+
+
+def test_create_comment_requires_authentication(client):
+    assert client.post("/forum/posts/1/comments", json={"body": "Hay quá"}).status_code == 401
+
+
+def test_create_comment_rejects_a_blank_body(client, db_session):
+    _register_and_login(client, "forum-comment-owner@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, post["id"])
+    response = client.post(f"/forum/posts/{post['id']}/comments", json={"body": "   "})
+    assert response.status_code == 422
+
+
+def test_create_comment_succeeds_for_a_visible_post(client, db_session):
+    _register_and_login(client, "forum-comment-owner2@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, post["id"])
+
+    _register_and_login(client, "forum-commenter@example.com")
+    response = client.post(f"/forum/posts/{post['id']}/comments", json={"body": "Đẹp quá!"})
+    assert response.status_code == 201
+    body = response.json()
+    assert body["body"] == "Đẹp quá!"
+    assert body["authorName"] == "User"
+    assert body["canDelete"] is True
+
+
+def test_create_comment_returns_404_for_a_non_visible_post(client):
+    _register_and_login(client, "forum-comment-owner3@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+
+    _register_and_login(client, "forum-commenter2@example.com")
+    response = client.post(f"/forum/posts/{post['id']}/comments", json={"body": "Đẹp quá!"})
+    assert response.status_code == 404
+
+
+def test_list_comments_is_public_for_a_published_post(client, db_session):
+    _register_and_login(client, "forum-comment-owner4@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, post["id"])
+    client.post(f"/forum/posts/{post['id']}/comments", json={"body": "Bình luận công khai"})
+
+    _register_and_login(client, "forum-comment-viewer@example.com")
+    response = client.get(f"/forum/posts/{post['id']}/comments")
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["canDelete"] is False
+
+
+def test_list_comments_returns_404_for_a_non_visible_post(client):
+    _register_and_login(client, "forum-comment-owner5@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+
+    _register_and_login(client, "forum-commenter3@example.com")
+    assert client.get(f"/forum/posts/{post['id']}/comments").status_code == 404
+
+
+def test_post_response_comment_count_reflects_comments(client, db_session):
+    _register_and_login(client, "forum-comment-owner6@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, post["id"])
+    client.post(f"/forum/posts/{post['id']}/comments", json={"body": "Một"})
+    client.post(f"/forum/posts/{post['id']}/comments", json={"body": "Hai"})
+
+    fetched = client.get(f"/forum/posts/{post['id']}").json()
+    assert fetched["commentCount"] == 2
+
+
+def test_delete_comment_requires_authentication(client):
+    assert client.delete("/forum/comments/1").status_code == 401
+
+
+def test_delete_comment_allowed_for_the_author(client, db_session):
+    _register_and_login(client, "forum-comment-owner7@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, post["id"])
+    comment = client.post(f"/forum/posts/{post['id']}/comments", json={"body": "Xoá tôi"}).json()
+
+    assert client.delete(f"/forum/comments/{comment['id']}").status_code == 204
+
+
+def test_delete_comment_allowed_for_an_admin(client, db_session):
+    _register_and_login(client, "forum-comment-owner8@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, post["id"])
+
+    _register_and_login(client, "forum-commenter4@example.com")
+    comment = client.post(f"/forum/posts/{post['id']}/comments", json={"body": "Của người khác"}).json()
+
+    _register_and_login(client, "forum-comment-admin@example.com")
+    _promote_to_admin_and_relogin(client, db_session, "forum-comment-admin@example.com")
+    assert client.delete(f"/forum/comments/{comment['id']}").status_code == 204
+
+
+def test_delete_comment_forbidden_for_a_stranger(client, db_session):
+    _register_and_login(client, "forum-comment-owner9@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, post["id"])
+    comment = client.post(f"/forum/posts/{post['id']}/comments", json={"body": "Của tôi"}).json()
+
+    _register_and_login(client, "forum-comment-stranger@example.com")
+    assert client.delete(f"/forum/comments/{comment['id']}").status_code == 403
+
+
+def test_delete_comment_returns_404_when_missing(client):
+    _register_and_login(client, "forum-comment-owner10@example.com")
+    assert client.delete("/forum/comments/999999").status_code == 404

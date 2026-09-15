@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.domains.forum.models import ForumComment, ForumLike, ForumPost, ForumReport
-from app.domains.forum.schemas import ForumPostCreate
+from app.domains.forum.schemas import ForumCommentCreate, ForumPostCreate
 
 ALLOWED_STATUS_TRANSITIONS: dict[str, list[str]] = {
     "pending": ["published", "rejected"],
@@ -146,6 +146,45 @@ def toggle_like(db: Session, post_id: int, user_id: int) -> tuple[bool, int]:
     db.add(ForumLike(post_id=post_id, user_id=user_id))
     db.commit()
     return True, count_likes(db, post_id)
+
+
+def create_comment(db: Session, post_id: int, author_id: int, data: ForumCommentCreate) -> ForumComment:
+    comment = ForumComment(post_id=post_id, author_id=author_id, body=data.body)
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return comment
+
+
+def list_comments(db: Session, post_id: int) -> list[ForumComment]:
+    return db.query(ForumComment).filter(ForumComment.post_id == post_id).order_by(ForumComment.id.asc()).all()
+
+
+def get_comment(db: Session, comment_id: int) -> ForumComment | None:
+    return db.get(ForumComment, comment_id)
+
+
+def delete_comment(db: Session, comment_id: int) -> bool:
+    comment = get_comment(db, comment_id)
+    if comment is None:
+        return False
+    db.delete(comment)
+    db.commit()
+    return True
+
+
+def build_comment_response(comment: ForumComment, viewer_id: int | None, viewer_role: str | None) -> dict:
+    can_delete = viewer_id is not None and (viewer_id == comment.author_id or viewer_role == "admin")
+    return {
+        "id": comment.id,
+        "post_id": comment.post_id,
+        "author_id": comment.author_id,
+        "author_name": comment.author.name,
+        "body": comment.body,
+        "created_at": comment.created_at,
+        "updated_at": comment.updated_at,
+        "can_delete": can_delete,
+    }
 
 
 def build_post_response(db: Session, post: ForumPost, viewer_id: int | None) -> dict:

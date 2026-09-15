@@ -1,7 +1,7 @@
 import pytest
 
 from app.domains.forum import service
-from app.domains.forum.schemas import ForumPostCreate
+from app.domains.forum.schemas import ForumCommentCreate, ForumPostCreate
 
 VALID_POST = ForumPostCreate(title="Bài test", body="Nội dung", category="general")
 
@@ -205,3 +205,63 @@ def test_toggle_like_counts_multiple_users_independently(db_session):
     service.toggle_like(db_session, post.id, user.id)
     liked, count = service.toggle_like(db_session, post.id, other.id)
     assert (liked, count) == (True, 2)
+
+
+def test_create_comment_persists_it(db_session):
+    user = _make_user(db_session, "forum-svc-comment1@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+
+    comment = service.create_comment(db_session, post.id, user.id, ForumCommentCreate(body="Đẹp quá!"))
+    assert comment.id is not None
+    assert comment.post_id == post.id
+    assert comment.author_id == user.id
+
+
+def test_list_comments_orders_oldest_first(db_session):
+    user = _make_user(db_session, "forum-svc-comment2@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+    first = service.create_comment(db_session, post.id, user.id, ForumCommentCreate(body="Đầu tiên"))
+    second = service.create_comment(db_session, post.id, user.id, ForumCommentCreate(body="Thứ hai"))
+
+    comments = service.list_comments(db_session, post.id)
+    assert [c.id for c in comments] == [first.id, second.id]
+
+
+def test_delete_comment_removes_it(db_session):
+    user = _make_user(db_session, "forum-svc-comment3@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+    comment = service.create_comment(db_session, post.id, user.id, ForumCommentCreate(body="Xoá tôi"))
+
+    assert service.delete_comment(db_session, comment.id) is True
+    assert service.get_comment(db_session, comment.id) is None
+    assert service.delete_comment(db_session, comment.id) is False
+
+
+def test_build_comment_response_allows_delete_for_the_author(db_session):
+    user = _make_user(db_session, "forum-svc-comment4@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+    comment = service.create_comment(db_session, post.id, user.id, ForumCommentCreate(body="Của tôi"))
+
+    data = service.build_comment_response(comment, viewer_id=user.id, viewer_role="user")
+    assert data["can_delete"] is True
+    assert data["author_name"] == "Author"
+
+
+def test_build_comment_response_allows_delete_for_an_admin(db_session):
+    user = _make_user(db_session, "forum-svc-comment5@example.com")
+    other = _make_user(db_session, "forum-svc-comment6@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+    comment = service.create_comment(db_session, post.id, user.id, ForumCommentCreate(body="Của tôi"))
+
+    data = service.build_comment_response(comment, viewer_id=other.id, viewer_role="admin")
+    assert data["can_delete"] is True
+
+
+def test_build_comment_response_forbids_delete_for_a_stranger(db_session):
+    user = _make_user(db_session, "forum-svc-comment7@example.com")
+    other = _make_user(db_session, "forum-svc-comment8@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+    comment = service.create_comment(db_session, post.id, user.id, ForumCommentCreate(body="Của tôi"))
+
+    data = service.build_comment_response(comment, viewer_id=other.id, viewer_role="user")
+    assert data["can_delete"] is False
