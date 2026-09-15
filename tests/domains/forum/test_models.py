@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.security import hash_password
 from app.domains.auth.models import User
-from app.domains.forum.models import ForumComment, ForumLike, ForumPost, ForumReport
+from app.domains.forum.models import ForumBookmark, ForumComment, ForumLike, ForumPost, ForumReport
 
 
 def _make_user_and_post(db_session, email: str) -> tuple[User, ForumPost]:
@@ -89,6 +89,18 @@ def test_forum_like_enforces_one_like_per_user_per_post(db_session):
     db_session.commit()
 
     db_session.add(ForumLike(post_id=post.id, user_id=user.id))
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+
+def test_forum_bookmark_enforces_one_bookmark_per_user_per_post(db_session):
+    user, post = _make_user_and_post(db_session, "forum-model-bookmark@example.com")
+
+    db_session.add(ForumBookmark(post_id=post.id, user_id=user.id))
+    db_session.commit()
+
+    db_session.add(ForumBookmark(post_id=post.id, user_id=user.id))
     with pytest.raises(IntegrityError):
         db_session.commit()
     db_session.rollback()
