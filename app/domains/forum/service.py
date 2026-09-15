@@ -134,6 +134,20 @@ def count_comments(db: Session, post_id: int) -> int:
     return db.query(ForumComment).filter(ForumComment.post_id == post_id).count()
 
 
+def toggle_like(db: Session, post_id: int, user_id: int) -> tuple[bool, int]:
+    existing = (
+        db.query(ForumLike).filter(ForumLike.post_id == post_id, ForumLike.user_id == user_id).first()
+    )
+    if existing is not None:
+        db.delete(existing)
+        db.commit()
+        return False, count_likes(db, post_id)
+
+    db.add(ForumLike(post_id=post_id, user_id=user_id))
+    db.commit()
+    return True, count_likes(db, post_id)
+
+
 def build_post_response(db: Session, post: ForumPost, viewer_id: int | None) -> dict:
     return {
         "id": post.id,

@@ -86,3 +86,8 @@ class ForumReportResponse(CamelModel):
     reason: str
     status: str
     created_at: datetime
+
+
+class ForumLikeResponse(CamelModel):
+    liked: bool
+    like_count: int

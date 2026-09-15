@@ -359,3 +359,37 @@ def test_post_response_includes_author_name_and_zeroed_counts(client):
     assert post["likeCount"] == 0
     assert post["likedByMe"] is False
     assert post["commentCount"] == 0
+
+
+def test_like_post_requires_authentication(client):
+    assert client.post("/forum/posts/1/like").status_code == 401
+
+
+def test_like_post_toggles_and_reflects_in_the_post_response(client, db_session):
+    _register_and_login(client, "forum-like-owner@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, post["id"])
+
+    response = client.post(f"/forum/posts/{post['id']}/like")
+    assert response.status_code == 200
+    assert response.json() == {"liked": True, "likeCount": 1}
+
+    fetched = client.get(f"/forum/posts/{post['id']}").json()
+    assert fetched["likeCount"] == 1
+    assert fetched["likedByMe"] is True
+
+    response2 = client.post(f"/forum/posts/{post['id']}/like")
+    assert response2.json() == {"liked": False, "likeCount": 0}
+
+
+def test_like_post_returns_404_for_a_non_visible_post(client):
+    _register_and_login(client, "forum-like-owner2@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+
+    _register_and_login(client, "forum-like-stranger@example.com")
+    assert client.post(f"/forum/posts/{post['id']}/like").status_code == 404
+
+
+def test_like_post_returns_404_for_a_nonexistent_post(client):
+    _register_and_login(client, "forum-like-owner3@example.com")
+    assert client.post("/forum/posts/999999/like").status_code == 404

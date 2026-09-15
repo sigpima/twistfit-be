@@ -184,3 +184,24 @@ def test_update_post_can_replace_the_image_url(db_session):
         db_session, post.id, VALID_POST.model_copy(update={"image_url": "https://example.com/new.jpg"})
     )
     assert updated.image_url == "https://example.com/new.jpg"
+
+
+def test_toggle_like_creates_then_removes_a_like(db_session):
+    user = _make_user(db_session, "forum-svc-like1@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+
+    liked, count = service.toggle_like(db_session, post.id, user.id)
+    assert (liked, count) == (True, 1)
+
+    liked, count = service.toggle_like(db_session, post.id, user.id)
+    assert (liked, count) == (False, 0)
+
+
+def test_toggle_like_counts_multiple_users_independently(db_session):
+    user = _make_user(db_session, "forum-svc-like2@example.com")
+    other = _make_user(db_session, "forum-svc-like3@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+
+    service.toggle_like(db_session, post.id, user.id)
+    liked, count = service.toggle_like(db_session, post.id, other.id)
+    assert (liked, count) == (True, 2)
