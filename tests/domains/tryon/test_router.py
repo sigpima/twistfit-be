@@ -1,4 +1,5 @@
 from app.domains.model_catalog.models import CatalogModel
+from app.domains.tryon import service as tryon_service
 
 
 def _login(client, email: str):
@@ -117,3 +118,52 @@ def test_create_job_rejects_an_invalid_pose(client, db_session):
     )
 
     assert response.status_code == 422
+
+
+def test_create_job_resolves_a_relative_catalog_model_image_to_an_absolute_url(client, db_session, monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        tryon_service,
+        "process_job",
+        lambda db, job_id, season, catalog_model_image_url: captured.update(url=catalog_model_image_url),
+    )
+
+    _login(client, "tryon-absolute-url@example.com")
+    model = _seed_catalog_model(db_session)
+    assert model.image == "/outfit/models/test.jpg"
+
+    response = client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay", "style": "casual"})
+
+    assert response.status_code == 201
+    assert captured["url"] == "http://localhost:3000/outfit/models/test.jpg"
+
+
+def test_create_job_leaves_an_already_absolute_catalog_model_image_untouched(client, db_session, monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        tryon_service,
+        "process_job",
+        lambda db, job_id, season, catalog_model_image_url: captured.update(url=catalog_model_image_url),
+    )
+
+    _login(client, "tryon-absolute-url-2@example.com")
+    model = CatalogModel(
+        name="Hosted Model",
+        image="https://cdn.example.com/models/test.jpg",
+        dossier_image="https://cdn.example.com/models/test.jpg",
+        pose_count=1,
+        tagline="Test",
+        undertone="warm",
+        height="1m70",
+        body_shape="Test",
+        waist="60cm",
+        personal_color="Autumn Warm",
+    )
+    db_session.add(model)
+    db_session.commit()
+    db_session.refresh(model)
+
+    response = client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay", "style": "casual"})
+
+    assert response.status_code == 201
+    assert captured["url"] == "https://cdn.example.com/models/test.jpg"
