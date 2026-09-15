@@ -32,7 +32,14 @@ def test_get_admin_stats_counts_across_all_domains(db_session):
         published_at="2026-01-01",
     )
     forum_post = ForumPost(title="Bài diễn đàn", body="Nội dung", category="general", author_id=user.id)
-    quiz_attempt = QuizAttempt(season="summer", user_id=user.id)
+    quiz_attempt = QuizAttempt(
+        sub_season="true-summer",
+        parent_season="summer",
+        hue_result="cool",
+        value_result="medium",
+        chroma_result="muted",
+        user_id=user.id,
+    )
     contact_message = ContactMessage(
         name="Khách", email="khach@twistfit.vn", phone=None, subject="other", message="Xin chào"
     )

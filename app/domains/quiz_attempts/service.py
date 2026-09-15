@@ -1,10 +1,42 @@
 from sqlalchemy.orm import Session
 
+from app.domains.quiz.models import QuizOption, QuizQuestion
 from app.domains.quiz_attempts.models import QuizAttempt
+from app.domains.quiz_attempts.schemas import QuizAnswerInput
+from app.domains.quiz_attempts.scoring import score_quiz
 
 
-def create_quiz_attempt(db: Session, season: str, user_id: int | None) -> QuizAttempt:
-    attempt = QuizAttempt(season=season, user_id=user_id)
+class InvalidAnswerError(Exception):
+    pass
+
+
+def create_quiz_attempt(db: Session, answers: list[QuizAnswerInput], user_id: int | None) -> QuizAttempt:
+    hue_votes: list[str] = []
+    value_votes: list[str] = []
+    chroma_votes: list[str] = []
+
+    for answer in answers:
+        option = db.get(QuizOption, answer.option_id)
+        if option is None or option.question_id != answer.question_id:
+            raise InvalidAnswerError(f"option {answer.option_id} does not belong to question {answer.question_id}")
+        question = db.get(QuizQuestion, answer.question_id)
+        if question.axis == "hue":
+            hue_votes.append(option.axis_value)
+        elif question.axis == "value":
+            value_votes.append(option.axis_value)
+        else:
+            chroma_votes.append(option.axis_value)
+
+    result = score_quiz(hue_votes, value_votes, chroma_votes)
+
+    attempt = QuizAttempt(
+        sub_season=result["sub_season"],
+        parent_season=result["parent_season"],
+        hue_result=result["hue_result"],
+        value_result=result["value_result"],
+        chroma_result=result["chroma_result"],
+        user_id=user_id,
+    )
     db.add(attempt)
     db.commit()
     db.refresh(attempt)

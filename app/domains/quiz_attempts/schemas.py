@@ -4,22 +4,37 @@ from pydantic import field_validator
 
 from app.domains.auth.schemas import CamelModel
 
-SEASONS = ["spring", "summer", "autumn", "winter"]
+PARENT_SEASONS = ["spring", "summer", "autumn", "winter"]
+SUB_SEASONS = [
+    "light-spring", "true-spring", "bright-spring",
+    "light-summer", "true-summer", "soft-summer",
+    "soft-autumn", "true-autumn", "deep-autumn",
+    "deep-winter", "true-winter", "bright-winter",
+]
+
+
+class QuizAnswerInput(CamelModel):
+    question_id: int
+    option_id: int
 
 
 class QuizAttemptCreate(CamelModel):
-    season: str
+    answers: list[QuizAnswerInput]
 
-    @field_validator("season")
+    @field_validator("answers")
     @classmethod
-    def season_valid(cls, value: str) -> str:
-        if value not in SEASONS:
-            raise ValueError("Kết quả mùa không hợp lệ")
+    def exactly_ten_answers(cls, value: list[QuizAnswerInput]) -> list[QuizAnswerInput]:
+        if len(value) != 10:
+            raise ValueError("Cần đúng 10 câu trả lời")
         return value
 
 
 class QuizAttemptResponse(CamelModel):
     id: int
-    season: str
+    sub_season: str
+    parent_season: str
+    hue_result: str
+    value_result: str
+    chroma_result: str
     user_id: int | None
     created_at: datetime

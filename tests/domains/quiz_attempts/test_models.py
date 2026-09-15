@@ -4,7 +4,14 @@ from app.domains.quiz_attempts.models import QuizAttempt
 
 
 def test_create_quiz_attempt_allows_a_null_user_id(db_session):
-    attempt = QuizAttempt(season="summer", user_id=None)
+    attempt = QuizAttempt(
+        sub_season="true-winter",
+        parent_season="winter",
+        hue_result="cool",
+        value_result="medium",
+        chroma_result="neutral",
+        user_id=None,
+    )
     db_session.add(attempt)
     db_session.commit()
     db_session.refresh(attempt)
@@ -22,7 +29,14 @@ def test_create_quiz_attempt_can_be_attributed_to_a_user(db_session):
     db_session.commit()
     db_session.refresh(user)
 
-    attempt = QuizAttempt(season="winter", user_id=user.id)
+    attempt = QuizAttempt(
+        sub_season="true-winter",
+        parent_season="winter",
+        hue_result="cool",
+        value_result="medium",
+        chroma_result="neutral",
+        user_id=user.id,
+    )
     db_session.add(attempt)
     db_session.commit()
     db_session.refresh(attempt)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -16,7 +16,10 @@ def create_attempt(
     db: Session = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
-    return service.create_quiz_attempt(db, body.season, user.id if user else None)
+    try:
+        return service.create_quiz_attempt(db, body.answers, user.id if user else None)
+    except service.InvalidAnswerError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="INVALID_ANSWER")
 
 
 @router.get("/me", response_model=QuizAttemptResponse | None)

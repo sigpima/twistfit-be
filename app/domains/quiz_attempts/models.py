@@ -10,7 +10,11 @@ class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    season: Mapped[str] = mapped_column(String(20), nullable=False)
+    sub_season: Mapped[str] = mapped_column(String(30), nullable=False)
+    parent_season: Mapped[str] = mapped_column(String(20), nullable=False)
+    hue_result: Mapped[str] = mapped_column(String(20), nullable=False)
+    value_result: Mapped[str] = mapped_column(String(20), nullable=False)
+    chroma_result: Mapped[str] = mapped_column(String(20), nullable=False)
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
