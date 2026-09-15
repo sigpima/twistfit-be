@@ -4,7 +4,7 @@ from pydantic import field_validator
 
 from app.domains.auth.schemas import CamelModel
 
-FAQ_CATEGORIES = ["personal-color", "fitting-room", "account", "stylist"]
+FAQ_CATEGORIES = ["account", "personal-color", "fitting-room", "policy"]
 FAQ_HIGHLIGHT_ICONS = [
     "palette",
     "wb_sunny",
