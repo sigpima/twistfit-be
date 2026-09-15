@@ -12,6 +12,7 @@ class ForumPostCreate(CamelModel):
     title: str
     body: str
     category: str
+    image_url: str | None = None
 
     @field_validator("title")
     @classmethod
@@ -52,9 +53,14 @@ class ForumPostResponse(CamelModel):
     id: int
     title: str
     body: str
+    image_url: str | None
     category: str
     status: str
     author_id: int
+    author_name: str
+    like_count: int
+    liked_by_me: bool
+    comment_count: int
     created_at: datetime
     updated_at: datetime
 

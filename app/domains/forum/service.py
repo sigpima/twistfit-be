@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.domains.forum.models import ForumPost, ForumReport
+from app.domains.forum.models import ForumComment, ForumLike, ForumPost, ForumReport
 from app.domains.forum.schemas import ForumPostCreate
 
 ALLOWED_STATUS_TRANSITIONS: dict[str, list[str]] = {
@@ -48,7 +48,12 @@ def can_view_post(post: ForumPost, viewer_id: int | None, viewer_role: str | Non
 
 def create_post(db: Session, author_id: int, data: ForumPostCreate) -> ForumPost:
     post = ForumPost(
-        title=data.title, body=data.body, category=data.category, status="pending", author_id=author_id
+        title=data.title,
+        body=data.body,
+        category=data.category,
+        image_url=data.image_url,
+        status="pending",
+        author_id=author_id,
     )
     db.add(post)
     db.commit()
@@ -63,6 +68,7 @@ def update_post(db: Session, post_id: int, data: ForumPostCreate) -> ForumPost |
     post.title = data.title
     post.body = data.body
     post.category = data.category
+    post.image_url = data.image_url
     post.status = "pending"
     db.commit()
     db.refresh(post)
@@ -111,3 +117,36 @@ def resolve_report(db: Session, report_id: int) -> ForumReport | None:
     db.commit()
     db.refresh(report)
     return report
+
+
+def count_likes(db: Session, post_id: int) -> int:
+    return db.query(ForumLike).filter(ForumLike.post_id == post_id).count()
+
+
+def user_has_liked(db: Session, post_id: int, user_id: int) -> bool:
+    return (
+        db.query(ForumLike).filter(ForumLike.post_id == post_id, ForumLike.user_id == user_id).first()
+        is not None
+    )
+
+
+def count_comments(db: Session, post_id: int) -> int:
+    return db.query(ForumComment).filter(ForumComment.post_id == post_id).count()
+
+
+def build_post_response(db: Session, post: ForumPost, viewer_id: int | None) -> dict:
+    return {
+        "id": post.id,
+        "title": post.title,
+        "body": post.body,
+        "image_url": post.image_url,
+        "category": post.category,
+        "status": post.status,
+        "author_id": post.author_id,
+        "author_name": post.author.name,
+        "like_count": count_likes(db, post.id),
+        "liked_by_me": viewer_id is not None and user_has_liked(db, post.id, viewer_id),
+        "comment_count": count_comments(db, post.id),
+        "created_at": post.created_at,
+        "updated_at": post.updated_at,
+    }

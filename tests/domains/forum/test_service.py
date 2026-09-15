@@ -152,3 +152,35 @@ def test_resolve_report_marks_it_resolved(db_session):
 
 def test_resolve_report_returns_none_when_missing(db_session):
     assert service.resolve_report(db_session, 999999) is None
+
+
+def test_build_post_response_includes_author_name_and_zeroed_counts(db_session):
+    user = _make_user(db_session, "forum-svc-shape1@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+
+    data = service.build_post_response(db_session, post, viewer_id=None)
+
+    assert data["author_name"] == "Author"
+    assert data["image_url"] is None
+    assert data["like_count"] == 0
+    assert data["liked_by_me"] is False
+    assert data["comment_count"] == 0
+
+
+def test_create_post_persists_an_image_url(db_session):
+    user = _make_user(db_session, "forum-svc-shape2@example.com")
+    post = service.create_post(
+        db_session, user.id, VALID_POST.model_copy(update={"image_url": "https://example.com/a.jpg"})
+    )
+    assert post.image_url == "https://example.com/a.jpg"
+
+
+def test_update_post_can_replace_the_image_url(db_session):
+    user = _make_user(db_session, "forum-svc-shape3@example.com")
+    post = service.create_post(
+        db_session, user.id, VALID_POST.model_copy(update={"image_url": "https://example.com/old.jpg"})
+    )
+    updated = service.update_post(
+        db_session, post.id, VALID_POST.model_copy(update={"image_url": "https://example.com/new.jpg"})
+    )
+    assert updated.image_url == "https://example.com/new.jpg"

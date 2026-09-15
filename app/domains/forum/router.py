@@ -1,6 +1,9 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.blob_storage import blob_public_url, ensure_container, generate_upload_sas_url
 from app.db.session import get_db
 from app.deps import get_current_user, get_current_user_optional, require_admin
 from app.domains.auth.models import User
@@ -17,22 +20,38 @@ from app.domains.forum.schemas import (
 router = APIRouter(prefix="/forum", tags=["forum"])
 
 
+@router.post("/upload-url")
+def get_upload_url(user: User = Depends(get_current_user)):
+    ensure_container("forum")
+    blob_path = f"{user.id}/{uuid.uuid4()}.jpg"
+    upload_url = generate_upload_sas_url("forum", blob_path)
+    return {"uploadUrl": upload_url, "blobPath": blob_path, "imageUrl": blob_public_url("forum", blob_path)}
+
+
 @router.get("/posts", response_model=list[ForumPostResponse])
-def list_posts(category: str | None = None, db: Session = Depends(get_db)):
+def list_posts(
+    category: str | None = None,
+    db: Session = Depends(get_db),
+    viewer: User | None = Depends(get_current_user_optional),
+):
     valid_category = category if category in FORUM_CATEGORIES else None
-    return service.list_published_posts(db, valid_category)
+    posts = service.list_published_posts(db, valid_category)
+    viewer_id = viewer.id if viewer else None
+    return [service.build_post_response(db, post, viewer_id) for post in posts]
 
 
 @router.post("/posts", response_model=ForumPostResponse, status_code=status.HTTP_201_CREATED)
 def create_post(body: ForumPostCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return service.create_post(db, user.id, body)
+    post = service.create_post(db, user.id, body)
+    return service.build_post_response(db, post, user.id)
 
 
 # Registered before /posts/{post_id} — a literal "mine" segment would
 # otherwise be swallowed by the {post_id} path parameter.
 @router.get("/posts/mine", response_model=list[ForumPostResponse])
 def list_my_posts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return service.list_posts_by_author(db, user.id)
+    posts = service.list_posts_by_author(db, user.id)
+    return [service.build_post_response(db, post, user.id) for post in posts]
 
 
 @router.get("/posts/{post_id}", response_model=ForumPostResponse)
@@ -46,7 +65,7 @@ def get_post(
     viewer_role = viewer.role if viewer else None
     if post is None or not service.can_view_post(post, viewer_id, viewer_role):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bài viết")
-    return post
+    return service.build_post_response(db, post, viewer_id)
 
 
 @router.put("/posts/{post_id}", response_model=ForumPostResponse)
@@ -61,7 +80,8 @@ def update_post(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bài viết")
     if post.author_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền sửa bài này")
-    return service.update_post(db, post_id, body)
+    updated = service.update_post(db, post_id, body)
+    return service.build_post_response(db, updated, user.id)
 
 
 @router.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -79,7 +99,7 @@ def update_post_status(
     post_id: int,
     body: ForumPostStatusUpdate,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
 ):
     try:
         updated = service.set_post_status(db, post_id, body.status)
@@ -87,7 +107,7 @@ def update_post_status(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="INVALID_STATUS_TRANSITION")
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bài viết")
-    return updated
+    return service.build_post_response(db, updated, admin.id)
 
 
 @router.post("/posts/{post_id}/report", response_model=ForumReportResponse, status_code=status.HTTP_201_CREATED)
@@ -104,8 +124,9 @@ def create_report(
 
 
 @router.get("/moderation/pending", response_model=list[ForumPostResponse])
-def list_pending_posts(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
-    return service.list_pending_posts(db)
+def list_pending_posts(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    posts = service.list_pending_posts(db)
+    return [service.build_post_response(db, post, admin.id) for post in posts]
 
 
 @router.get("/moderation/reports", response_model=list[ForumReportResponse])

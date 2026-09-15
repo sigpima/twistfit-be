@@ -329,3 +329,33 @@ def test_resolve_report_returns_404_when_missing(client, db_session):
     _register_and_login(client, "forum-resolve2@example.com")
     _promote_to_admin_and_relogin(client, db_session, "forum-resolve2@example.com")
     assert client.patch("/forum/reports/999999").status_code == 404
+
+
+def test_upload_url_requires_authentication(client):
+    assert client.post("/forum/upload-url").status_code == 401
+
+
+def test_upload_url_returns_a_writable_sas_url_and_final_image_url(client):
+    _register_and_login(client, "forum-upload@example.com")
+    response = client.post("/forum/upload-url")
+    assert response.status_code == 200
+    body = response.json()
+    assert "sig=" in body["uploadUrl"]
+    assert body["blobPath"] in body["imageUrl"]
+
+
+def test_create_post_accepts_an_optional_image_url(client):
+    _register_and_login(client, "forum-image@example.com")
+    response = client.post("/forum/posts", json={**VALID_BODY, "imageUrl": "https://example.com/a.jpg"})
+    assert response.status_code == 201
+    assert response.json()["imageUrl"] == "https://example.com/a.jpg"
+
+
+def test_post_response_includes_author_name_and_zeroed_counts(client):
+    _register_and_login(client, "forum-shape@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    assert post["authorName"] == "User"
+    assert post["imageUrl"] is None
+    assert post["likeCount"] == 0
+    assert post["likedByMe"] is False
+    assert post["commentCount"] == 0
