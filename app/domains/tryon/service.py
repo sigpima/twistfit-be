@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.core.blob_storage import download_bytes_from_url, upload_bytes
+from app.core.blob_storage import download_bytes_from_url, ensure_container, upload_bytes
 from app.domains.tryon.catvton_client import call_catvton_service
 from app.domains.tryon.garment_selection import select_best_matching_item
 from app.domains.tryon.models import TryOnJob
@@ -58,6 +58,7 @@ def process_job(db: Session, job_id: int, season: str, catalog_model_image_url: 
 
         result_bytes = call_catvton_service(person_bytes, garment_bytes, "upper")
 
+        ensure_container("results")
         result_url = upload_bytes("results", f"{job.user_id}/{job.id}.png", result_bytes)
 
         job.result_blob_url = result_url

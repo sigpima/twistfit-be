@@ -20,6 +20,8 @@ def test_process_job_completes_successfully(db_session, monkeypatch):
     )
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style="casual")
 
+    ensured_containers = []
+    monkeypatch.setattr(tryon_service, "ensure_container", ensured_containers.append)
     monkeypatch.setattr(tryon_service, "download_bytes_from_url", lambda url: b"fake-image-bytes")
     monkeypatch.setattr(tryon_service, "call_catvton_service", lambda person, garment, cloth_type: b"result-bytes")
     monkeypatch.setattr(tryon_service, "upload_bytes", lambda container, path, data, content_type="image/png": "https://example.com/results/1.png")
@@ -30,6 +32,7 @@ def test_process_job_completes_successfully(db_session, monkeypatch):
     assert updated.status == "done"
     assert updated.result_blob_url == "https://example.com/results/1.png"
     assert updated.wardrobe_item_id is not None
+    assert ensured_containers == ["results"]
 
 
 def test_process_job_marks_failed_when_no_matching_item_exists(db_session):
