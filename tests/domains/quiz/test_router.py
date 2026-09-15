@@ -1,9 +1,10 @@
 VALID_BODY = {
     "questionText": "Câu hỏi test?",
+    "axis": "hue",
     "sortOrder": 0,
     "options": [
-        {"label": "A", "season": "spring"},
-        {"label": "B", "season": "summer"},
+        {"label": "A", "axisValue": "warm"},
+        {"label": "B", "axisValue": "cool"},
     ],
 }
 
@@ -60,9 +61,9 @@ def test_admin_can_create_get_update_and_delete_quiz_question(client, db_session
             **VALID_BODY,
             "questionText": "Đã sửa?",
             "options": [
-                {"label": "C", "season": "autumn"},
-                {"label": "D", "season": "winter"},
-                {"label": "E", "season": "spring"},
+                {"label": "C", "axisValue": "warm"},
+                {"label": "D", "axisValue": "cool"},
+                {"label": "E", "axisValue": "neutral"},
             ],
         },
     )
@@ -83,6 +84,20 @@ def test_create_quiz_question_rejects_invalid_body(client, db_session):
     client.post("/auth/login", json={"identifier": "quiz-admin2@example.com", "password": "password123"})
 
     response = client.post(
-        "/quiz-questions", json={**VALID_BODY, "options": [{"label": "Only one", "season": "spring"}]}
+        "/quiz-questions", json={**VALID_BODY, "options": [{"label": "Only one", "axisValue": "warm"}]}
+    )
+    assert response.status_code == 422
+
+
+def test_create_quiz_question_rejects_an_axis_value_not_valid_for_the_axis(client, db_session):
+    client.post(
+        "/auth/register", json={"name": "Admin", "identifier": "quiz-admin3@example.com", "password": "password123"}
+    )
+    _promote_to_admin(db_session, "quiz-admin3@example.com")
+    client.post("/auth/login", json={"identifier": "quiz-admin3@example.com", "password": "password123"})
+
+    response = client.post(
+        "/quiz-questions",
+        json={**VALID_BODY, "options": [{"label": "A", "axisValue": "dark"}, {"label": "B", "axisValue": "cool"}]},
     )
     assert response.status_code == 422

@@ -13,11 +13,15 @@ def get_quiz_question(db: Session, question_id: int) -> QuizQuestion | None:
 
 
 def create_quiz_question(db: Session, data: QuizQuestionInput) -> QuizQuestion:
-    question = QuizQuestion(question_text=data.question_text, sort_order=data.sort_order)
+    question = QuizQuestion(
+        question_text=data.question_text, axis=data.axis, image_url=data.image_url, sort_order=data.sort_order
+    )
     db.add(question)
     db.flush()
     for index, option in enumerate(data.options):
-        db.add(QuizOption(question_id=question.id, label=option.label, season=option.season, sort_order=index))
+        db.add(
+            QuizOption(question_id=question.id, label=option.label, axis_value=option.axis_value, sort_order=index)
+        )
     db.commit()
     db.refresh(question)
     return question
@@ -29,11 +33,15 @@ def update_quiz_question(db: Session, question_id: int, data: QuizQuestionInput)
         return None
 
     question.question_text = data.question_text
+    question.axis = data.axis
+    question.image_url = data.image_url
     question.sort_order = data.sort_order
     db.query(QuizOption).filter(QuizOption.question_id == question_id).delete()
     db.flush()
     for index, option in enumerate(data.options):
-        db.add(QuizOption(question_id=question.id, label=option.label, season=option.season, sort_order=index))
+        db.add(
+            QuizOption(question_id=question.id, label=option.label, axis_value=option.axis_value, sort_order=index)
+        )
     db.commit()
     db.refresh(question)
     return question

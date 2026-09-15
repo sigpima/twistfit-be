@@ -7,10 +7,11 @@ from app.domains.quiz.schemas import QuizQuestionInput
 
 VALID_INPUT = {
     "questionText": "Câu hỏi test?",
+    "axis": "hue",
     "sortOrder": 0,
     "options": [
-        {"label": "A", "season": "spring"},
-        {"label": "B", "season": "summer"},
+        {"label": "A", "axisValue": "warm"},
+        {"label": "B", "axisValue": "cool"},
     ],
 }
 
@@ -18,8 +19,10 @@ VALID_INPUT = {
 def test_create_quiz_question_with_options(db_session):
     question = service.create_quiz_question(db_session, QuizQuestionInput(**VALID_INPUT))
     assert question.id is not None
+    assert question.axis == "hue"
     assert len(question.options) == 2
     assert question.options[0].label == "A"
+    assert question.options[0].axis_value == "warm"
 
 
 def test_list_quiz_questions_orders_by_sort_order(db_session):
@@ -33,6 +36,13 @@ def test_get_quiz_question_returns_none_when_missing(db_session):
     assert service.get_quiz_question(db_session, 99999) is None
 
 
+def test_create_quiz_question_stores_the_image_url(db_session):
+    question = service.create_quiz_question(
+        db_session, QuizQuestionInput(**{**VALID_INPUT, "imageUrl": "/personal-color/quiz/wrist-veins.jpg"})
+    )
+    assert question.image_url == "/personal-color/quiz/wrist-veins.jpg"
+
+
 def test_update_quiz_question_replaces_options_wholesale(db_session):
     question = service.create_quiz_question(db_session, QuizQuestionInput(**VALID_INPUT))
     updated = service.update_quiz_question(
@@ -43,9 +53,9 @@ def test_update_quiz_question_replaces_options_wholesale(db_session):
                 **VALID_INPUT,
                 "questionText": "Đã sửa",
                 "options": [
-                    {"label": "C", "season": "autumn"},
-                    {"label": "D", "season": "winter"},
-                    {"label": "E", "season": "spring"},
+                    {"label": "C", "axisValue": "warm"},
+                    {"label": "D", "axisValue": "cool"},
+                    {"label": "E", "axisValue": "neutral"},
                 ],
             }
         ),
@@ -79,17 +89,4 @@ def test_quiz_question_input_rejects_blank_question_text():
 
 def test_quiz_question_input_rejects_fewer_than_two_options():
     with pytest.raises(ValidationError):
-        QuizQuestionInput(**{**VALID_INPUT, "options": [{"label": "Only one", "season": "spring"}]})
-
-
-def test_quiz_question_input_rejects_invalid_season():
-    with pytest.raises(ValidationError):
-        QuizQuestionInput(
-            **{
-                **VALID_INPUT,
-                "options": [
-                    {"label": "A", "season": "not-a-real-season"},
-                    {"label": "B", "season": "summer"},
-                ],
-            }
-        )
+        QuizQuestionInput(**{**VALID_INPUT, "options": [{"label": "Only one", "axisValue": "warm"}]})
