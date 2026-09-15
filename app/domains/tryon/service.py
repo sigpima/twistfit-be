@@ -6,6 +6,14 @@ from app.domains.tryon.garment_selection import select_best_matching_item
 from app.domains.tryon.models import TryOnJob
 from app.domains.wardrobe.models import WardrobeItem
 
+CLOTH_TYPE_BY_CATEGORY = {
+    "ao-thun": "upper",
+    "ao-so-mi": "upper",
+    "ao-khoac": "upper",
+    "quan-jean": "lower",
+    "dam": "overall",
+}
+
 
 def create_job(
     db: Session, user_id: int, catalog_model_id: int, occasion: str, style: str, pose: str = "front"
@@ -56,7 +64,8 @@ def process_job(db: Session, job_id: int, season: str, catalog_model_image_url: 
         garment_bytes = download_bytes_from_url(selected.blob_url)
         person_bytes = download_bytes_from_url(catalog_model_image_url)
 
-        result_bytes = call_catvton_service(person_bytes, garment_bytes, "upper")
+        cloth_type = CLOTH_TYPE_BY_CATEGORY.get(selected.category, "upper")
+        result_bytes = call_catvton_service(person_bytes, garment_bytes, cloth_type)
 
         ensure_container("results")
         result_url = upload_bytes("results", f"{job.user_id}/{job.id}.png", result_bytes)
