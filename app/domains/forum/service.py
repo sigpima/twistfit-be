@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.domains.forum.models import ForumComment, ForumLike, ForumPost, ForumReport
+from app.domains.forum.models import ForumBookmark, ForumComment, ForumLike, ForumPost, ForumReport
 from app.domains.forum.schemas import ForumCommentCreate, ForumPostCreate
 
 ALLOWED_STATUS_TRANSITIONS: dict[str, list[str]] = {
@@ -148,6 +148,30 @@ def toggle_like(db: Session, post_id: int, user_id: int) -> tuple[bool, int]:
     return True, count_likes(db, post_id)
 
 
+def user_has_bookmarked(db: Session, post_id: int, user_id: int) -> bool:
+    return (
+        db.query(ForumBookmark)
+        .filter(ForumBookmark.post_id == post_id, ForumBookmark.user_id == user_id)
+        .first()
+        is not None
+    )
+
+
+def toggle_bookmark(db: Session, post_id: int, user_id: int) -> bool:
+    existing = (
+        db.query(ForumBookmark)
+        .filter(ForumBookmark.post_id == post_id, ForumBookmark.user_id == user_id)
+        .first()
+    )
+    if existing is not None:
+        db.delete(existing)
+        db.commit()
+        return False
+    db.add(ForumBookmark(post_id=post_id, user_id=user_id))
+    db.commit()
+    return True
+
+
 def create_comment(db: Session, post_id: int, author_id: int, data: ForumCommentCreate) -> ForumComment:
     comment = ForumComment(post_id=post_id, author_id=author_id, body=data.body)
     db.add(comment)
@@ -200,6 +224,7 @@ def build_post_response(db: Session, post: ForumPost, viewer_id: int | None) -> 
         "like_count": count_likes(db, post.id),
         "liked_by_me": viewer_id is not None and user_has_liked(db, post.id, viewer_id),
         "comment_count": count_comments(db, post.id),
+        "bookmarked_by_me": viewer_id is not None and user_has_bookmarked(db, post.id, viewer_id),
         "created_at": post.created_at,
         "updated_at": post.updated_at,
     }

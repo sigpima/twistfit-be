@@ -265,3 +265,23 @@ def test_build_comment_response_forbids_delete_for_a_stranger(db_session):
 
     data = service.build_comment_response(comment, viewer_id=other.id, viewer_role="user")
     assert data["can_delete"] is False
+
+
+def test_toggle_bookmark_creates_then_removes_a_bookmark(db_session):
+    user = _make_user(db_session, "forum-svc-bookmark1@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+
+    assert service.toggle_bookmark(db_session, post.id, user.id) is True
+    assert service.toggle_bookmark(db_session, post.id, user.id) is False
+
+
+def test_build_post_response_reflects_bookmarked_by_me(db_session):
+    user = _make_user(db_session, "forum-svc-bookmark2@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+
+    data = service.build_post_response(db_session, post, viewer_id=user.id)
+    assert data["bookmarked_by_me"] is False
+
+    service.toggle_bookmark(db_session, post.id, user.id)
+    data = service.build_post_response(db_session, post, viewer_id=user.id)
+    assert data["bookmarked_by_me"] is True

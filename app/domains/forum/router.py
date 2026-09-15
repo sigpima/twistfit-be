@@ -10,6 +10,7 @@ from app.domains.auth.models import User
 from app.domains.forum import service
 from app.domains.forum.schemas import (
     FORUM_CATEGORIES,
+    ForumBookmarkResponse,
     ForumCommentCreate,
     ForumCommentResponse,
     ForumLikeResponse,
@@ -133,6 +134,15 @@ def like_post(post_id: int, db: Session = Depends(get_db), user: User = Depends(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bài viết")
     liked, like_count = service.toggle_like(db, post_id, user.id)
     return {"liked": liked, "like_count": like_count}
+
+
+@router.post("/posts/{post_id}/bookmark", response_model=ForumBookmarkResponse)
+def bookmark_post(post_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    post = service.get_post(db, post_id)
+    if post is None or not service.can_view_post(post, user.id, user.role):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bài viết")
+    bookmarked = service.toggle_bookmark(db, post_id, user.id)
+    return {"bookmarked": bookmarked}
 
 
 @router.post("/posts/{post_id}/comments", response_model=ForumCommentResponse, status_code=status.HTTP_201_CREATED)

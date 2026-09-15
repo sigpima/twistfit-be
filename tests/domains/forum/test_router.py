@@ -501,3 +501,36 @@ def test_delete_comment_forbidden_for_a_stranger(client, db_session):
 def test_delete_comment_returns_404_when_missing(client):
     _register_and_login(client, "forum-comment-owner10@example.com")
     assert client.delete("/forum/comments/999999").status_code == 404
+
+
+def test_bookmark_post_requires_authentication(client):
+    assert client.post("/forum/posts/1/bookmark").status_code == 401
+
+
+def test_bookmark_post_toggles_and_reflects_in_the_post_response(client, db_session):
+    _register_and_login(client, "forum-bookmark-owner@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, post["id"])
+
+    response = client.post(f"/forum/posts/{post['id']}/bookmark")
+    assert response.status_code == 200
+    assert response.json() == {"bookmarked": True}
+
+    fetched = client.get(f"/forum/posts/{post['id']}").json()
+    assert fetched["bookmarkedByMe"] is True
+
+    response2 = client.post(f"/forum/posts/{post['id']}/bookmark")
+    assert response2.json() == {"bookmarked": False}
+
+
+def test_bookmark_post_returns_404_for_a_non_visible_post(client):
+    _register_and_login(client, "forum-bookmark-owner2@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+
+    _register_and_login(client, "forum-bookmark-stranger@example.com")
+    assert client.post(f"/forum/posts/{post['id']}/bookmark").status_code == 404
+
+
+def test_bookmark_post_returns_404_for_a_nonexistent_post(client):
+    _register_and_login(client, "forum-bookmark-owner3@example.com")
+    assert client.post("/forum/posts/999999/bookmark").status_code == 404

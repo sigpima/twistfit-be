@@ -61,6 +61,7 @@ class ForumPostResponse(CamelModel):
     like_count: int
     liked_by_me: bool
     comment_count: int
+    bookmarked_by_me: bool
     created_at: datetime
     updated_at: datetime
 
@@ -114,3 +115,7 @@ class ForumCommentResponse(CamelModel):
     created_at: datetime
     updated_at: datetime
     can_delete: bool
+
+
+class ForumBookmarkResponse(CamelModel):
+    bookmarked: bool
