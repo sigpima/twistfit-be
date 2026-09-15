@@ -35,18 +35,18 @@ def test_create_capsule_set_requires_authentication(client):
 
 
 def test_create_capsule_set_requires_admin_role(client, db_session):
-    client.post("/auth/register", json={"name": "T", "email": "capsule-user@example.com", "password": "password123"})
-    client.post("/auth/login", json={"email": "capsule-user@example.com", "password": "password123"})
+    client.post("/auth/register", json={"name": "T", "identifier": "capsule-user@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "capsule-user@example.com", "password": "password123"})
     response = client.post("/capsule-wardrobe", json=VALID_BODY)
     assert response.status_code == 403
 
 
 def test_admin_can_create_get_update_and_delete_capsule_set(client, db_session):
     client.post(
-        "/auth/register", json={"name": "Admin", "email": "capsule-admin@example.com", "password": "password123"}
+        "/auth/register", json={"name": "Admin", "identifier": "capsule-admin@example.com", "password": "password123"}
     )
     _promote_to_admin(db_session, "capsule-admin@example.com")
-    client.post("/auth/login", json={"email": "capsule-admin@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "capsule-admin@example.com", "password": "password123"})
 
     create_response = client.post("/capsule-wardrobe", json=VALID_BODY)
     assert create_response.status_code == 201
@@ -67,10 +67,10 @@ def test_admin_can_create_get_update_and_delete_capsule_set(client, db_session):
 
 def test_create_capsule_set_rejects_invalid_body(client, db_session):
     client.post(
-        "/auth/register", json={"name": "Admin", "email": "capsule-admin2@example.com", "password": "password123"}
+        "/auth/register", json={"name": "Admin", "identifier": "capsule-admin2@example.com", "password": "password123"}
     )
     _promote_to_admin(db_session, "capsule-admin2@example.com")
-    client.post("/auth/login", json={"email": "capsule-admin2@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "capsule-admin2@example.com", "password": "password123"})
 
     response = client.post("/capsule-wardrobe", json={**VALID_BODY, "items": []})
     assert response.status_code == 422

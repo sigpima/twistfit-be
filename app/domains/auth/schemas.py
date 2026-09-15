@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
 
@@ -8,23 +8,25 @@ class CamelModel(BaseModel):
 
 class RegisterRequest(CamelModel):
     name: str
-    email: EmailStr
+    identifier: str
     password: str
 
 
 class LoginRequest(CamelModel):
-    email: EmailStr
+    identifier: str
     password: str
 
 
 class UserResponse(CamelModel):
     id: int
     name: str
-    email: str
+    email: str | None
+    phone: str | None
     role: str
 
 
 class AccountResponse(CamelModel):
     name: str
-    email: str
+    email: str | None
+    phone: str | None
     role: str

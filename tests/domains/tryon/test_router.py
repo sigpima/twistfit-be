@@ -3,8 +3,8 @@ from app.domains.tryon import service as tryon_service
 
 
 def _login(client, email: str):
-    client.post("/auth/register", json={"name": "Test", "email": email, "password": "password123"})
-    client.post("/auth/login", json={"email": email, "password": "password123"})
+    client.post("/auth/register", json={"name": "Test", "identifier": email, "password": "password123"})
+    client.post("/auth/login", json={"identifier": email, "password": "password123"})
 
 
 def _seed_catalog_model(db_session) -> CatalogModel:

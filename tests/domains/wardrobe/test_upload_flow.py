@@ -5,8 +5,8 @@ from app.domains.wardrobe import router as wardrobe_router
 
 
 def _login(client, email: str):
-    client.post("/auth/register", json={"name": "Test", "email": email, "password": "password123"})
-    client.post("/auth/login", json={"email": email, "password": "password123"})
+    client.post("/auth/register", json={"name": "Test", "identifier": email, "password": "password123"})
+    client.post("/auth/login", json={"identifier": email, "password": "password123"})
 
 
 def test_upload_url_requires_authentication(client):

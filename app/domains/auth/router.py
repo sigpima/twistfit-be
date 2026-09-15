@@ -6,6 +6,7 @@ from app.core.security import ACCESS_TOKEN_TTL_SECONDS, REFRESH_TOKEN_TTL_SECOND
 from app.db.session import get_db
 from app.deps import get_current_user
 from app.domains.auth import service
+from app.domains.auth.identifier import classify_identifier
 from app.domains.auth.models import User
 from app.domains.auth.schemas import AccountResponse, LoginRequest, RegisterRequest, UserResponse
 
@@ -30,15 +31,28 @@ def _clear_auth_cookies(response: Response) -> None:
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(body: RegisterRequest, db: Session = Depends(get_db)) -> User:
+    classified = classify_identifier(body.identifier)
+    if classified is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="INVALID_IDENTIFIER")
+    kind, value = classified
+
     try:
-        return service.create_user(db, name=body.name, email=body.email, password=body.password)
+        return service.create_user(
+            db,
+            name=body.name,
+            password=body.password,
+            email=value if kind == "email" else None,
+            phone=value if kind == "phone" else None,
+        )
     except service.EmailAlreadyTakenError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="EMAIL_TAKEN")
+    except service.PhoneAlreadyTakenError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="PHONE_TAKEN")
 
 
 @router.post("/login", response_model=AccountResponse)
 def login(body: LoginRequest, response: Response, db: Session = Depends(get_db)) -> User:
-    user = service.authenticate_user(db, body.email, body.password)
+    user = service.authenticate_user(db, body.identifier, body.password)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CREDENTIALS")
 

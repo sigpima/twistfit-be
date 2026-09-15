@@ -34,16 +34,16 @@ def test_create_team_member_requires_authentication(client):
 
 
 def test_create_team_member_requires_admin_role(client, db_session):
-    client.post("/auth/register", json={"name": "T", "email": "team-user@example.com", "password": "password123"})
-    client.post("/auth/login", json={"email": "team-user@example.com", "password": "password123"})
+    client.post("/auth/register", json={"name": "T", "identifier": "team-user@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "team-user@example.com", "password": "password123"})
     response = client.post("/team", json=VALID_BODY)
     assert response.status_code == 403
 
 
 def test_admin_can_create_get_update_and_delete_team_member(client, db_session):
-    client.post("/auth/register", json={"name": "Admin", "email": "team-admin@example.com", "password": "password123"})
+    client.post("/auth/register", json={"name": "Admin", "identifier": "team-admin@example.com", "password": "password123"})
     _promote_to_admin(db_session, "team-admin@example.com")
-    client.post("/auth/login", json={"email": "team-admin@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "team-admin@example.com", "password": "password123"})
 
     create_response = client.post("/team", json=VALID_BODY)
     assert create_response.status_code == 201
@@ -63,9 +63,9 @@ def test_admin_can_create_get_update_and_delete_team_member(client, db_session):
 
 
 def test_create_team_member_rejects_invalid_body(client, db_session):
-    client.post("/auth/register", json={"name": "Admin", "email": "team-admin2@example.com", "password": "password123"})
+    client.post("/auth/register", json={"name": "Admin", "identifier": "team-admin2@example.com", "password": "password123"})
     _promote_to_admin(db_session, "team-admin2@example.com")
-    client.post("/auth/login", json={"email": "team-admin2@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "team-admin2@example.com", "password": "password123"})
 
     response = client.post("/team", json={**VALID_BODY, "name": ""})
     assert response.status_code == 422

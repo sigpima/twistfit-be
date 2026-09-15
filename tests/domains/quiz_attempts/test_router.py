@@ -11,9 +11,9 @@ def test_create_attempt_attributes_to_the_logged_in_user(client, db_session):
 
     client.post(
         "/auth/register",
-        json={"name": "Test", "email": "quiz-attempt-router@example.com", "password": "password123"},
+        json={"name": "Test", "identifier": "quiz-attempt-router@example.com", "password": "password123"},
     )
-    client.post("/auth/login", json={"email": "quiz-attempt-router@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "quiz-attempt-router@example.com", "password": "password123"})
     user = db_session.query(User).filter(User.email == "quiz-attempt-router@example.com").one()
 
     response = client.post("/quiz-attempts", json={"season": "winter"})
@@ -39,8 +39,8 @@ def test_get_me_requires_authentication(client):
 
 
 def test_get_me_returns_null_when_no_attempt_exists(client):
-    client.post("/auth/register", json={"name": "Test", "email": "quiz-me-1@example.com", "password": "password123"})
-    client.post("/auth/login", json={"email": "quiz-me-1@example.com", "password": "password123"})
+    client.post("/auth/register", json={"name": "Test", "identifier": "quiz-me-1@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "quiz-me-1@example.com", "password": "password123"})
 
     response = client.get("/quiz-attempts/me")
 
@@ -49,8 +49,8 @@ def test_get_me_returns_null_when_no_attempt_exists(client):
 
 
 def test_get_me_returns_the_latest_attempt(client):
-    client.post("/auth/register", json={"name": "Test", "email": "quiz-me-2@example.com", "password": "password123"})
-    client.post("/auth/login", json={"email": "quiz-me-2@example.com", "password": "password123"})
+    client.post("/auth/register", json={"name": "Test", "identifier": "quiz-me-2@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "quiz-me-2@example.com", "password": "password123"})
 
     client.post("/quiz-attempts", json={"season": "spring"})
     client.post("/quiz-attempts", json={"season": "autumn"})

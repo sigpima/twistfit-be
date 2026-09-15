@@ -16,11 +16,35 @@ def test_create_user_rejects_duplicate_email(db_session):
         service.create_user(db_session, name="B", email="dup@example.com", password="password456")
 
 
+def test_create_user_accepts_a_phone_number_instead_of_email(db_session):
+    user = service.create_user(db_session, name="Linh", phone="0912345678", password="password123")
+    assert user.email is None
+    assert user.phone == "+84912345678"
+
+
+def test_create_user_rejects_duplicate_phone(db_session):
+    service.create_user(db_session, name="A", phone="0912345678", password="password123")
+    with pytest.raises(service.PhoneAlreadyTakenError):
+        service.create_user(db_session, name="B", phone="0912345678", password="password456")
+
+
+def test_create_user_requires_at_least_one_of_email_or_phone(db_session):
+    with pytest.raises(ValueError):
+        service.create_user(db_session, name="A", password="password123")
+
+
 def test_authenticate_user_accepts_correct_password(db_session):
     service.create_user(db_session, name="A", email="auth@example.com", password="password123")
     user = service.authenticate_user(db_session, "auth@example.com", "password123")
     assert user is not None
     assert user.email == "auth@example.com"
+
+
+def test_authenticate_user_accepts_a_phone_number_identifier(db_session):
+    service.create_user(db_session, name="A", phone="0912345678", password="password123")
+    user = service.authenticate_user(db_session, "0912345678", "password123")
+    assert user is not None
+    assert user.phone == "+84912345678"
 
 
 def test_authenticate_user_rejects_wrong_password(db_session):

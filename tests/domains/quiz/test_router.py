@@ -32,18 +32,18 @@ def test_create_quiz_question_requires_authentication(client):
 
 
 def test_create_quiz_question_requires_admin_role(client, db_session):
-    client.post("/auth/register", json={"name": "T", "email": "quiz-user@example.com", "password": "password123"})
-    client.post("/auth/login", json={"email": "quiz-user@example.com", "password": "password123"})
+    client.post("/auth/register", json={"name": "T", "identifier": "quiz-user@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "quiz-user@example.com", "password": "password123"})
     response = client.post("/quiz-questions", json=VALID_BODY)
     assert response.status_code == 403
 
 
 def test_admin_can_create_get_update_and_delete_quiz_question(client, db_session):
     client.post(
-        "/auth/register", json={"name": "Admin", "email": "quiz-admin@example.com", "password": "password123"}
+        "/auth/register", json={"name": "Admin", "identifier": "quiz-admin@example.com", "password": "password123"}
     )
     _promote_to_admin(db_session, "quiz-admin@example.com")
-    client.post("/auth/login", json={"email": "quiz-admin@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "quiz-admin@example.com", "password": "password123"})
 
     create_response = client.post("/quiz-questions", json=VALID_BODY)
     assert create_response.status_code == 201
@@ -77,10 +77,10 @@ def test_admin_can_create_get_update_and_delete_quiz_question(client, db_session
 
 def test_create_quiz_question_rejects_invalid_body(client, db_session):
     client.post(
-        "/auth/register", json={"name": "Admin", "email": "quiz-admin2@example.com", "password": "password123"}
+        "/auth/register", json={"name": "Admin", "identifier": "quiz-admin2@example.com", "password": "password123"}
     )
     _promote_to_admin(db_session, "quiz-admin2@example.com")
-    client.post("/auth/login", json={"email": "quiz-admin2@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "quiz-admin2@example.com", "password": "password123"})
 
     response = client.post(
         "/quiz-questions", json={**VALID_BODY, "options": [{"label": "Only one", "season": "spring"}]}

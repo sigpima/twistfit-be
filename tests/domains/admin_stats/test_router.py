@@ -5,9 +5,9 @@ def test_get_stats_requires_authentication(client):
 def test_get_stats_requires_admin_role(client):
     client.post(
         "/auth/register",
-        json={"name": "User", "email": "admin-stats-user@example.com", "password": "password123"},
+        json={"name": "User", "identifier": "admin-stats-user@example.com", "password": "password123"},
     )
-    client.post("/auth/login", json={"email": "admin-stats-user@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "admin-stats-user@example.com", "password": "password123"})
     response = client.get("/admin/stats")
     assert response.status_code == 403
 
@@ -17,11 +17,11 @@ def test_get_stats_returns_the_full_shape_for_an_admin(client, db_session):
 
     client.post(
         "/auth/register",
-        json={"name": "Admin", "email": "admin-stats-admin@example.com", "password": "password123"},
+        json={"name": "Admin", "identifier": "admin-stats-admin@example.com", "password": "password123"},
     )
     db_session.query(User).filter(User.email == "admin-stats-admin@example.com").update({"role": "admin"})
     db_session.commit()
-    client.post("/auth/login", json={"email": "admin-stats-admin@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "admin-stats-admin@example.com", "password": "password123"})
 
     response = client.get("/admin/stats")
     assert response.status_code == 200

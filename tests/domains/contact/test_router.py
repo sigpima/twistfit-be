@@ -1,10 +1,10 @@
 def _register_and_promote_admin(client, db_session, email: str) -> None:
     from app.domains.auth.models import User
 
-    client.post("/auth/register", json={"name": "Admin", "email": email, "password": "password123"})
+    client.post("/auth/register", json={"name": "Admin", "identifier": email, "password": "password123"})
     db_session.query(User).filter(User.email == email).update({"role": "admin"})
     db_session.commit()
-    client.post("/auth/login", json={"email": email, "password": "password123"})
+    client.post("/auth/login", json={"identifier": email, "password": "password123"})
 
 
 VALID_BODY = {
@@ -36,9 +36,9 @@ def test_list_messages_requires_authentication(client):
 
 def test_list_messages_requires_admin_role(client, db_session):
     client.post(
-        "/auth/register", json={"name": "User", "email": "contact-user@example.com", "password": "password123"}
+        "/auth/register", json={"name": "User", "identifier": "contact-user@example.com", "password": "password123"}
     )
-    client.post("/auth/login", json={"email": "contact-user@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "contact-user@example.com", "password": "password123"})
     response = client.get("/contact")
     assert response.status_code == 403
 

@@ -11,10 +11,15 @@ from app.core.security import (
     hash_refresh_token,
     verify_password,
 )
+from app.domains.auth.identifier import classify_identifier, normalize_phone
 from app.domains.auth.models import RefreshToken, User
 
 
 class EmailAlreadyTakenError(Exception):
+    pass
+
+
+class PhoneAlreadyTakenError(Exception):
     pass
 
 
@@ -26,19 +31,59 @@ def get_user_by_email(db: Session, email: str) -> User | None:
     return db.execute(select(User).where(User.email == normalize_email(email))).scalar_one_or_none()
 
 
-def create_user(db: Session, name: str, email: str, password: str, role: str = "user") -> User:
-    if get_user_by_email(db, email) is not None:
-        raise EmailAlreadyTakenError(email)
+def get_user_by_phone(db: Session, phone: str) -> User | None:
+    normalized = normalize_phone(phone)
+    if normalized is None:
+        return None
+    return db.execute(select(User).where(User.phone == normalized)).scalar_one_or_none()
 
-    user = User(name=name, email=normalize_email(email), password_hash=hash_password(password), role=role)
+
+def get_user_by_identifier(db: Session, identifier: str) -> User | None:
+    classified = classify_identifier(identifier)
+    if classified is None:
+        return None
+    kind, value = classified
+    if kind == "phone":
+        return db.execute(select(User).where(User.phone == value)).scalar_one_or_none()
+    return db.execute(select(User).where(User.email == value)).scalar_one_or_none()
+
+
+def create_user(
+    db: Session,
+    name: str,
+    password: str,
+    email: str | None = None,
+    phone: str | None = None,
+    role: str = "user",
+) -> User:
+    if not email and not phone:
+        raise ValueError("Cần cung cấp email hoặc số điện thoại")
+
+    normalized_email = normalize_email(email) if email else None
+    normalized_phone = normalize_phone(phone) if phone else None
+    if phone and normalized_phone is None:
+        raise ValueError("Số điện thoại không hợp lệ")
+
+    if normalized_email and get_user_by_email(db, normalized_email) is not None:
+        raise EmailAlreadyTakenError(normalized_email)
+    if normalized_phone and get_user_by_phone(db, normalized_phone) is not None:
+        raise PhoneAlreadyTakenError(normalized_phone)
+
+    user = User(
+        name=name,
+        email=normalized_email,
+        phone=normalized_phone,
+        password_hash=hash_password(password),
+        role=role,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
 
 
-def authenticate_user(db: Session, email: str, password: str) -> User | None:
-    user = get_user_by_email(db, email)
+def authenticate_user(db: Session, identifier: str, password: str) -> User | None:
+    user = get_user_by_identifier(db, identifier)
     if user is None or not user.is_active:
         return None
     if not verify_password(password, user.password_hash):

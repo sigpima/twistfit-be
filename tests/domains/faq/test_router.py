@@ -1,6 +1,6 @@
 def _register_and_login(client, email: str) -> None:
-    client.post("/auth/register", json={"name": "Test", "email": email, "password": "password123"})
-    client.post("/auth/login", json={"email": email, "password": "password123"})
+    client.post("/auth/register", json={"name": "Test", "identifier": email, "password": "password123"})
+    client.post("/auth/login", json={"identifier": email, "password": "password123"})
 
 
 def test_list_faq_items_is_public(client):
@@ -47,11 +47,11 @@ def test_admin_can_create_get_update_and_delete_faq_item(client, db_session):
     from app.domains.auth.models import User
 
     client.post(
-        "/auth/register", json={"name": "Admin", "email": "faq-admin@example.com", "password": "password123"}
+        "/auth/register", json={"name": "Admin", "identifier": "faq-admin@example.com", "password": "password123"}
     )
     db_session.query(User).filter(User.email == "faq-admin@example.com").update({"role": "admin"})
     db_session.commit()
-    client.post("/auth/login", json={"email": "faq-admin@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "faq-admin@example.com", "password": "password123"})
 
     create_response = client.post(
         "/faq",
@@ -92,11 +92,11 @@ def test_create_faq_item_rejects_invalid_body(client, db_session):
     from app.domains.auth.models import User
 
     client.post(
-        "/auth/register", json={"name": "Admin", "email": "faq-admin2@example.com", "password": "password123"}
+        "/auth/register", json={"name": "Admin", "identifier": "faq-admin2@example.com", "password": "password123"}
     )
     db_session.query(User).filter(User.email == "faq-admin2@example.com").update({"role": "admin"})
     db_session.commit()
-    client.post("/auth/login", json={"email": "faq-admin2@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "faq-admin2@example.com", "password": "password123"})
 
     response = client.post(
         "/faq",

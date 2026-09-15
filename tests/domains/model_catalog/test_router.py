@@ -36,16 +36,16 @@ def test_create_model_requires_authentication(client):
 
 
 def test_create_model_requires_admin_role(client, db_session):
-    client.post("/auth/register", json={"name": "T", "email": "model-user@example.com", "password": "password123"})
-    client.post("/auth/login", json={"email": "model-user@example.com", "password": "password123"})
+    client.post("/auth/register", json={"name": "T", "identifier": "model-user@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "model-user@example.com", "password": "password123"})
     response = client.post("/model-catalog", json=VALID_BODY)
     assert response.status_code == 403
 
 
 def test_admin_can_create_get_update_and_delete_model(client, db_session):
-    client.post("/auth/register", json={"name": "Admin", "email": "model-admin@example.com", "password": "password123"})
+    client.post("/auth/register", json={"name": "Admin", "identifier": "model-admin@example.com", "password": "password123"})
     _promote_to_admin(db_session, "model-admin@example.com")
-    client.post("/auth/login", json={"email": "model-admin@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "model-admin@example.com", "password": "password123"})
 
     create_response = client.post("/model-catalog", json=VALID_BODY)
     assert create_response.status_code == 201
@@ -65,9 +65,9 @@ def test_admin_can_create_get_update_and_delete_model(client, db_session):
 
 
 def test_create_model_rejects_invalid_body(client, db_session):
-    client.post("/auth/register", json={"name": "Admin", "email": "model-admin2@example.com", "password": "password123"})
+    client.post("/auth/register", json={"name": "Admin", "identifier": "model-admin2@example.com", "password": "password123"})
     _promote_to_admin(db_session, "model-admin2@example.com")
-    client.post("/auth/login", json={"email": "model-admin2@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "model-admin2@example.com", "password": "password123"})
 
     response = client.post("/model-catalog", json={**VALID_BODY, "poseCount": 0})
     assert response.status_code == 422

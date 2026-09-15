@@ -1,6 +1,6 @@
 def _register_and_login(client, email: str) -> None:
-    client.post("/auth/register", json={"name": "User", "email": email, "password": "password123"})
-    client.post("/auth/login", json={"email": email, "password": "password123"})
+    client.post("/auth/register", json={"name": "User", "identifier": email, "password": "password123"})
+    client.post("/auth/login", json={"identifier": email, "password": "password123"})
 
 
 def _promote_to_admin_and_relogin(client, db_session, email: str) -> None:
@@ -8,7 +8,7 @@ def _promote_to_admin_and_relogin(client, db_session, email: str) -> None:
 
     db_session.query(User).filter(User.email == email).update({"role": "admin"})
     db_session.commit()
-    client.post("/auth/login", json={"email": email, "password": "password123"})
+    client.post("/auth/login", json={"identifier": email, "password": "password123"})
 
 
 VALID_BODY = {"title": "Bài test", "body": "Nội dung", "category": "general"}
