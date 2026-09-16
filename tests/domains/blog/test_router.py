@@ -85,6 +85,34 @@ def test_create_blog_post_rejects_duplicate_slug_with_409(client, db_session):
     assert response.json()["detail"] == "SLUG_TAKEN"
 
 
+def test_upload_url_requires_authentication(client):
+    response = client.post("/blog/upload-url")
+    assert response.status_code == 401
+
+
+def test_upload_url_requires_admin_role(client):
+    client.post(
+        "/auth/register", json={"name": "T", "identifier": "blog-upload-user@example.com", "password": "password123"}
+    )
+    client.post("/auth/login", json={"identifier": "blog-upload-user@example.com", "password": "password123"})
+    response = client.post("/blog/upload-url")
+    assert response.status_code == 403
+
+
+def test_upload_url_returns_a_writable_sas_url_and_final_image_url(client, db_session):
+    client.post(
+        "/auth/register", json={"name": "Admin", "identifier": "blog-upload-admin@example.com", "password": "password123"}
+    )
+    _promote_to_admin(db_session, "blog-upload-admin@example.com")
+    client.post("/auth/login", json={"identifier": "blog-upload-admin@example.com", "password": "password123"})
+
+    response = client.post("/blog/upload-url")
+    assert response.status_code == 200
+    body = response.json()
+    assert "sig=" in body["uploadUrl"]
+    assert body["blobPath"] in body["imageUrl"]
+
+
 def test_create_blog_post_rejects_invalid_body(client, db_session):
     client.post(
         "/auth/register", json={"name": "Admin", "identifier": "blog-admin3@example.com", "password": "password123"}

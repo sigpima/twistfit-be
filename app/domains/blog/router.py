@@ -1,12 +1,23 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.blob_storage import blob_public_url, ensure_container, generate_upload_sas_url
 from app.db.session import get_db
 from app.deps import require_admin
 from app.domains.blog import service
 from app.domains.blog.schemas import BlogPostInput, BlogPostResponse
 
 router = APIRouter(prefix="/blog", tags=["blog"])
+
+
+@router.post("/upload-url")
+def get_upload_url(_admin=Depends(require_admin)):
+    ensure_container("blog")
+    blob_path = f"{uuid.uuid4()}.jpg"
+    upload_url = generate_upload_sas_url("blog", blob_path)
+    return {"uploadUrl": upload_url, "blobPath": blob_path, "imageUrl": blob_public_url("blog", blob_path)}
 
 
 @router.get("", response_model=list[BlogPostResponse])
