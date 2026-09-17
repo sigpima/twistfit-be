@@ -41,7 +41,7 @@ def create_tryon_job(
     latest_attempt = (
         db.query(QuizAttempt).filter(QuizAttempt.user_id == user.id).order_by(QuizAttempt.id.desc()).first()
     )
-    season = latest_attempt.season if latest_attempt else "spring"
+    season = latest_attempt.parent_season if latest_attempt else "spring"
 
     job = service.create_job(db, user.id, body.catalog_model_id, body.occasion, body.style, body.pose)
     person_image_path = catalog_model.side_image if body.pose == "side" and catalog_model.side_image else catalog_model.image
