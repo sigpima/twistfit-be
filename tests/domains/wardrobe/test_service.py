@@ -64,10 +64,11 @@ def test_get_item_returns_none_for_another_users_item(db_session):
 
 def test_create_item_accepts_valid_attributes(db_session):
     _seed_clothing_type_group(db_session)
+    user = auth_service.create_user(db_session, name="Test", email="wardrobe-svc-5@example.com", password="password123")
 
     item = service.create_item(
         db_session,
-        user_id=1,
+        user_id=user.id,
         data=WardrobeItemCreate(
             blob_url="https://example.com/a.png",
             attributes={"clothing-type": ["ao"]},

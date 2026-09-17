@@ -12,9 +12,7 @@ def test_create_wardrobe_item(db_session):
     item = WardrobeItem(
         user_id=user.id,
         blob_url="https://example.com/wardrobe/1.png",
-        category="ao-thun",
-        style_tags=["casual"],
-        occasion_tags=["hang-ngay"],
+        attributes={"clothing-type": ["ao"], "style": ["casual"], "occasion": ["hang-ngay"]},
         dominant_colors=["#ff0000"],
     )
     db_session.add(item)
@@ -23,4 +21,4 @@ def test_create_wardrobe_item(db_session):
 
     assert item.id is not None
     assert item.user_id == user.id
-    assert item.style_tags == ["casual"]
+    assert item.attributes["style"] == ["casual"]

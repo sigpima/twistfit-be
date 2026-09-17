@@ -30,7 +30,10 @@ def get_item(item_id: int, db: Session = Depends(get_db), user: User = Depends(g
 
 @router.post("/items", response_model=WardrobeItemResponse, status_code=status.HTTP_201_CREATED)
 def create_item(body: WardrobeItemCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return service.create_item(db, user.id, body)
+    try:
+        return service.create_item(db, user.id, body)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
 
 @router.post("/upload-url")
@@ -42,8 +45,10 @@ def get_upload_url(user: User = Depends(get_current_user)):
 
 
 @router.post("/items/suggest-tags")
-def suggest_tags_endpoint(body: SuggestTagsRequest, user: User = Depends(get_current_user)):
+def suggest_tags_endpoint(
+    body: SuggestTagsRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
     image_bytes = download_bytes("wardrobe", body.blob_path)
-    tags = suggest_tags(image_bytes)
+    attributes = suggest_tags(image_bytes, db)
     colors = extract_dominant_colors(image_bytes)
-    return {**tags, "dominantColors": colors, "blobUrl": blob_public_url("wardrobe", body.blob_path)}
+    return {**attributes, "dominantColors": colors, "blobUrl": blob_public_url("wardrobe", body.blob_path)}

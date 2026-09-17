@@ -1,22 +1,37 @@
 import pytest
 
 from app.domains.auth import service as auth_service
+from app.domains.taxonomy.schemas import TaxonomyGroupInput, TaxonomyValueInput
+from app.domains.taxonomy import service as taxonomy_service
 from app.domains.tryon import service as tryon_service
 from app.domains.tryon.models import TryOnJob
 from app.domains.wardrobe import service as wardrobe_service
 from app.domains.wardrobe.schemas import WardrobeItemCreate
 
 
+def _seed_taxonomy(db_session):
+    clothing_type = taxonomy_service.create_group(db_session, TaxonomyGroupInput(key="clothing-type", label="Loại quần áo"))
+    for key, label in [("ao", "Áo"), ("quan", "Quần"), ("vay", "Váy"), ("dam", "Đầm"), ("ao-khoac", "Áo khoác")]:
+        taxonomy_service.create_value(db_session, clothing_type.id, TaxonomyValueInput(key=key, label=label))
+
+    style = taxonomy_service.create_group(db_session, TaxonomyGroupInput(key="style", label="Loại phong cách"))
+    for key, label in [("casual", "Casual"), ("formal", "Formal")]:
+        taxonomy_service.create_value(db_session, style.id, TaxonomyValueInput(key=key, label=label))
+
+    occasion = taxonomy_service.create_group(db_session, TaxonomyGroupInput(key="occasion", label="Loại dịp"))
+    for key, label in [("hang-ngay", "Hằng ngày"), ("du-tiec", "Dự tiệc")]:
+        taxonomy_service.create_value(db_session, occasion.id, TaxonomyValueInput(key=key, label=label))
+
+
 def test_process_job_completes_successfully(db_session, monkeypatch):
+    _seed_taxonomy(db_session)
     user = auth_service.create_user(db_session, name="Test", email="process-job@example.com", password="password123")
     wardrobe_service.create_item(
         db_session,
         user.id,
         WardrobeItemCreate(
             blob_url="https://example.com/garment.png",
-            category="ao-thun",
-            style_tags=["casual"],
-            occasion_tags=["hang-ngay"],
+            attributes={"clothing-type": ["ao"], "style": ["casual"], "occasion": ["hang-ngay"]},
             dominant_colors=["#F2A93B"],
         ),
     )
@@ -38,27 +53,26 @@ def test_process_job_completes_successfully(db_session, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "category,expected_cloth_type",
+    "clothing_type,expected_cloth_type",
     [
-        ("ao-thun", "upper"),
-        ("ao-so-mi", "upper"),
+        ("ao", "upper"),
         ("ao-khoac", "upper"),
-        ("quan-jean", "lower"),
+        ("quan", "lower"),
+        ("vay", "lower"),
         ("dam", "overall"),
     ],
 )
 def test_process_job_passes_the_cloth_type_matching_the_garment_category(
-    db_session, monkeypatch, category, expected_cloth_type
+    db_session, monkeypatch, clothing_type, expected_cloth_type
 ):
-    user = auth_service.create_user(db_session, name="Test", email=f"cloth-type-{category}@example.com", password="password123")
+    _seed_taxonomy(db_session)
+    user = auth_service.create_user(db_session, name="Test", email=f"cloth-type-{clothing_type}@example.com", password="password123")
     wardrobe_service.create_item(
         db_session,
         user.id,
         WardrobeItemCreate(
             blob_url="https://example.com/garment.png",
-            category=category,
-            style_tags=["casual"],
-            occasion_tags=["hang-ngay"],
+            attributes={"clothing-type": [clothing_type], "style": ["casual"], "occasion": ["hang-ngay"]},
             dominant_colors=["#F2A93B"],
         ),
     )

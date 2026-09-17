@@ -76,13 +76,15 @@ def test_get_group_values_returns_empty_list_for_unknown_group(db_session):
 
 
 def test_delete_value_rejects_when_referenced_by_a_wardrobe_item(db_session):
+    from app.domains.auth import service as auth_service
     from app.domains.wardrobe.models import WardrobeItem
 
+    user = auth_service.create_user(db_session, name="Test", email="taxonomy-svc-1@example.com", password="password123")
     group = service.create_group(db_session, TaxonomyGroupInput(key="clothing-type", label="Loại quần áo"))
     value = service.create_value(db_session, group.id, TaxonomyValueInput(key="ao", label="Áo"))
     db_session.add(
         WardrobeItem(
-            user_id=1,
+            user_id=user.id,
             blob_url="https://example.com/a.png",
             attributes={"clothing-type": ["ao"]},
             dominant_colors=["#ffffff"],

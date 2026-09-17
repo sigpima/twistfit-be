@@ -6,9 +6,7 @@ def _item(colors: list[str]) -> WardrobeItem:
     return WardrobeItem(
         user_id=1,
         blob_url="https://example.com/x.png",
-        category="ao-thun",
-        style_tags=["casual"],
-        occasion_tags=["hang-ngay"],
+        attributes={"clothing-type": ["ao"], "style": ["casual"], "occasion": ["hang-ngay"]},
         dominant_colors=colors,
     )
 

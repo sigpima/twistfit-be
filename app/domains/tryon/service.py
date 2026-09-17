@@ -1,3 +1,5 @@
+from sqlalchemy import cast
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
 
 from app.core.blob_storage import download_bytes_from_url, ensure_container, upload_bytes
@@ -6,11 +8,11 @@ from app.domains.tryon.garment_selection import select_best_matching_item
 from app.domains.tryon.models import TryOnJob
 from app.domains.wardrobe.models import WardrobeItem
 
-CLOTH_TYPE_BY_CATEGORY = {
-    "ao-thun": "upper",
-    "ao-so-mi": "upper",
+CLOTH_TYPE_BY_CLOTHING_TYPE = {
+    "ao": "upper",
     "ao-khoac": "upper",
-    "quan-jean": "lower",
+    "quan": "lower",
+    "vay": "lower",
     "dam": "overall",
 }
 
@@ -49,8 +51,8 @@ def process_job(db: Session, job_id: int, season: str, catalog_model_image_url: 
             db.query(WardrobeItem)
             .filter(
                 WardrobeItem.user_id == job.user_id,
-                WardrobeItem.occasion_tags.contains([job.occasion]),
-                WardrobeItem.style_tags.contains([job.style]),
+                cast(WardrobeItem.attributes["occasion"], JSONB).contains([job.occasion]),
+                cast(WardrobeItem.attributes["style"], JSONB).contains([job.style]),
             )
             .all()
         )
@@ -64,7 +66,9 @@ def process_job(db: Session, job_id: int, season: str, catalog_model_image_url: 
         garment_bytes = download_bytes_from_url(selected.blob_url)
         person_bytes = download_bytes_from_url(catalog_model_image_url)
 
-        cloth_type = CLOTH_TYPE_BY_CATEGORY.get(selected.category, "upper")
+        clothing_types = selected.attributes.get("clothing-type", [])
+        selected_clothing_type = clothing_types[0] if clothing_types else None
+        cloth_type = CLOTH_TYPE_BY_CLOTHING_TYPE.get(selected_clothing_type, "upper")
         result_bytes = call_catvton_service(person_bytes, garment_bytes, cloth_type)
 
         ensure_container("results")

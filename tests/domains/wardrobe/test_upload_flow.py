@@ -42,13 +42,13 @@ def test_suggest_tags_combines_gemini_and_color_extraction(client, monkeypatch):
     monkeypatch.setattr(
         wardrobe_router,
         "suggest_tags",
-        lambda image_bytes: {"category": "ao-thun", "styleTags": ["casual"], "occasionTags": ["hang-ngay"]},
+        lambda image_bytes, db: {"clothing-type": ["ao"], "style": ["casual"], "occasion": ["hang-ngay"]},
     )
 
     response = client.post("/wardrobe/items/suggest-tags", json={"blobPath": blob_path})
 
     assert response.status_code == 200
     body = response.json()
-    assert body["category"] == "ao-thun"
+    assert body["clothing-type"] == ["ao"]
     assert body["dominantColors"] == ["#ff0000"]
     assert blob_path in body["blobUrl"]
