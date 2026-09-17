@@ -17,15 +17,12 @@ CLOTH_TYPE_BY_CLOTHING_TYPE = {
 }
 
 
-def create_job(
-    db: Session, user_id: int, catalog_model_id: int, occasion: str, style: str, pose: str = "front"
-) -> TryOnJob:
+def create_job(db: Session, user_id: int, catalog_model_id: int, occasion: str, style: str) -> TryOnJob:
     job = TryOnJob(
         user_id=user_id,
         catalog_model_id=catalog_model_id,
         occasion=occasion,
         style=style,
-        pose=pose,
         status="pending",
     )
     db.add(job)
@@ -38,7 +35,7 @@ def get_job(db: Session, user_id: int, job_id: int) -> TryOnJob | None:
     return db.query(TryOnJob).filter(TryOnJob.id == job_id, TryOnJob.user_id == user_id).first()
 
 
-def process_job(db: Session, job_id: int, season: str, catalog_model_image_url: str) -> None:
+def process_job(db: Session, job_id: int, season: str, front_image_url: str, side_image_url: str | None = None) -> None:
     job = db.get(TryOnJob, job_id)
     if job is None:
         return
@@ -64,17 +61,22 @@ def process_job(db: Session, job_id: int, season: str, catalog_model_image_url: 
         db.commit()
 
         garment_bytes = download_bytes_from_url(selected.blob_url)
-        person_bytes = download_bytes_from_url(catalog_model_image_url)
 
         clothing_types = selected.attributes.get("clothing-type", [])
         selected_clothing_type = clothing_types[0] if clothing_types else None
         cloth_type = CLOTH_TYPE_BY_CLOTHING_TYPE.get(selected_clothing_type, "upper")
-        result_bytes = call_catvton_service(person_bytes, garment_bytes, cloth_type)
 
         ensure_container("results")
-        result_url = upload_bytes("results", f"{job.user_id}/{job.id}.png", result_bytes)
 
-        job.result_blob_url = result_url
+        front_person_bytes = download_bytes_from_url(front_image_url)
+        front_result_bytes = call_catvton_service(front_person_bytes, garment_bytes, cloth_type)
+        job.result_front_blob_url = upload_bytes("results", f"{job.user_id}/{job.id}-front.png", front_result_bytes)
+
+        if side_image_url:
+            side_person_bytes = download_bytes_from_url(side_image_url)
+            side_result_bytes = call_catvton_service(side_person_bytes, garment_bytes, cloth_type)
+            job.result_side_blob_url = upload_bytes("results", f"{job.user_id}/{job.id}-side.png", side_result_bytes)
+
         job.status = "done"
         db.commit()
     except Exception as error:  # noqa: BLE001 — any failure here must land the job in `failed`, not crash the background task

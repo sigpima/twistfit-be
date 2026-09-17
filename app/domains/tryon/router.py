@@ -19,10 +19,10 @@ def _resolve_asset_url(path: str) -> str:
     return f"{settings.frontend_base_url.rstrip('/')}/{path.lstrip('/')}"
 
 
-def _process_job_with_fresh_session(job_id: int, season: str, catalog_model_image_url: str) -> None:
+def _process_job_with_fresh_session(job_id: int, season: str, front_image_url: str, side_image_url: str | None) -> None:
     db = SessionLocal()
     try:
-        service.process_job(db, job_id, season, catalog_model_image_url)
+        service.process_job(db, job_id, season, front_image_url, side_image_url)
     finally:
         db.close()
 
@@ -43,10 +43,10 @@ def create_tryon_job(
     )
     season = latest_attempt.parent_season if latest_attempt else "spring"
 
-    job = service.create_job(db, user.id, body.catalog_model_id, body.occasion, body.style, body.pose)
-    person_image_path = catalog_model.side_image if body.pose == "side" and catalog_model.side_image else catalog_model.image
-    person_image_url = _resolve_asset_url(person_image_path)
-    background_tasks.add_task(_process_job_with_fresh_session, job.id, season, person_image_url)
+    job = service.create_job(db, user.id, body.catalog_model_id, body.occasion, body.style)
+    front_image_url = _resolve_asset_url(catalog_model.image)
+    side_image_url = _resolve_asset_url(catalog_model.side_image) if catalog_model.side_image else None
+    background_tasks.add_task(_process_job_with_fresh_session, job.id, season, front_image_url, side_image_url)
     return job
 
 

@@ -23,4 +23,5 @@ def test_create_tryon_job(db_session):
     assert job.id is not None
     assert job.status == "pending"
     assert job.wardrobe_item_id is None
-    assert job.result_blob_url is None
+    assert job.result_front_blob_url is None
+    assert job.result_side_blob_url is None
