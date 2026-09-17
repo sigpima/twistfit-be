@@ -13,9 +13,7 @@ class WardrobeItem(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     blob_url: Mapped[str] = mapped_column(String(1000), nullable=False)
-    category: Mapped[str] = mapped_column(String(100), nullable=False)
-    style_tags: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
-    occasion_tags: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    attributes: Mapped[dict[str, list[str]]] = mapped_column(JSONB, nullable=False)
     dominant_colors: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)

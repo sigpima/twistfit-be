@@ -73,3 +73,22 @@ def test_get_group_values_returns_value_keys_for_a_group(db_session):
 
 def test_get_group_values_returns_empty_list_for_unknown_group(db_session):
     assert service.get_group_values(db_session, "does-not-exist") == []
+
+
+def test_delete_value_rejects_when_referenced_by_a_wardrobe_item(db_session):
+    from app.domains.wardrobe.models import WardrobeItem
+
+    group = service.create_group(db_session, TaxonomyGroupInput(key="clothing-type", label="Loại quần áo"))
+    value = service.create_value(db_session, group.id, TaxonomyValueInput(key="ao", label="Áo"))
+    db_session.add(
+        WardrobeItem(
+            user_id=1,
+            blob_url="https://example.com/a.png",
+            attributes={"clothing-type": ["ao"]},
+            dominant_colors=["#ffffff"],
+        )
+    )
+    db_session.commit()
+
+    with pytest.raises(ValueError):
+        service.delete_value(db_session, value.id)

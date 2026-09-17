@@ -1,3 +1,5 @@
+from sqlalchemy import cast
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -75,9 +77,21 @@ def update_value(db: Session, value_id: int, data: TaxonomyValueInput) -> Taxono
 
 
 def delete_value(db: Session, value_id: int) -> bool:
+    from app.domains.wardrobe.models import WardrobeItem
+
     value = get_value(db, value_id)
     if value is None:
         return False
+
+    group = get_group(db, value.group_id)
+    in_use_count = (
+        db.query(WardrobeItem)
+        .filter(cast(WardrobeItem.attributes[group.key], JSONB).contains([value.key]))
+        .count()
+    )
+    if in_use_count > 0:
+        raise ValueError(f'Giá trị "{value.label}" đang được {in_use_count} món đồ sử dụng, không thể xoá')
+
     db.delete(value)
     db.commit()
     return True
