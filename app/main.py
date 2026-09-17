@@ -26,6 +26,8 @@ from app.domains.admin_stats.router import router as admin_stats_router
 from app.domains.wardrobe.router import router as wardrobe_router
 from app.domains.tryon.router import router as tryon_router
 from app.domains.accessories.router import router as accessories_router
+from app.domains.taxonomy.router import router as taxonomy_router
+from app.domains.taxonomy.seed import seed_demo_taxonomy_groups
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,6 +40,7 @@ async def lifespan(app: FastAPI):
         seed_demo_capsule_sets(db)
         seed_demo_blog_posts(db)
         seed_demo_quiz_questions(db)
+        seed_demo_taxonomy_groups(db)
     finally:
         db.close()
     yield
@@ -67,6 +70,7 @@ app.include_router(admin_stats_router)
 app.include_router(wardrobe_router)
 app.include_router(tryon_router)
 app.include_router(accessories_router)
+app.include_router(taxonomy_router)
 
 
 @app.get("/health")
