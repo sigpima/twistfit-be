@@ -25,6 +25,7 @@ from app.domains.forum.router import router as forum_router
 from app.domains.admin_stats.router import router as admin_stats_router
 from app.domains.wardrobe.router import router as wardrobe_router
 from app.domains.tryon.router import router as tryon_router
+from app.domains.accessories.router import router as accessories_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -65,6 +66,7 @@ app.include_router(forum_router)
 app.include_router(admin_stats_router)
 app.include_router(wardrobe_router)
 app.include_router(tryon_router)
+app.include_router(accessories_router)
 
 
 @app.get("/health")
