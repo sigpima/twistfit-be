@@ -5,16 +5,18 @@ from sqlalchemy.orm import Session
 
 from app.core.blob_storage import blob_public_url, download_bytes, ensure_container, generate_upload_sas_url
 from app.db.session import get_db
-from app.deps import require_admin
+from app.deps import get_current_user, require_admin
 from app.domains.accessories import service
 from app.domains.accessories.gemini_client import suggest_tags
 from app.domains.accessories.schemas import (
     ACCESSORY_CATEGORIES,
     AccessoryProductInput,
     AccessoryProductResponse,
+    AccessoryRecommendationResponse,
     SuggestTagsRequest,
 )
 from app.domains.auth.models import User
+from app.domains.quiz_attempts.models import QuizAttempt
 
 router = APIRouter(prefix="/accessories", tags=["accessories"])
 
@@ -45,6 +47,20 @@ def suggest_tags_endpoint(body: SuggestTagsRequest, _admin: User = Depends(requi
     except Exception:  # noqa: BLE001 — any Gemini failure must degrade to the fallback, not 500
         tags = _FALLBACK_SUGGESTION
     return {**tags, "blobUrl": blob_public_url("accessories", body.blob_path)}
+
+
+@router.get("/recommendations", response_model=list[AccessoryRecommendationResponse])
+def get_recommendations(
+    occasion: str,
+    style: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    latest_attempt = (
+        db.query(QuizAttempt).filter(QuizAttempt.user_id == user.id).order_by(QuizAttempt.id.desc()).first()
+    )
+    tone = latest_attempt.parent_season if latest_attempt else None
+    return service.recommend(db, occasion, style, tone)
 
 
 @router.get("", response_model=list[AccessoryProductResponse])

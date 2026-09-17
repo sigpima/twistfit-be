@@ -70,3 +70,11 @@ class AccessoryProductResponse(CamelModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class AccessoryRecommendationResponse(CamelModel):
+    id: int
+    name: str
+    image_url: str
+    affiliate_link: str
+    category: str
