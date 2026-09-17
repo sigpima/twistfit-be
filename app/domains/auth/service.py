@@ -129,6 +129,35 @@ def revoke_refresh_token(db: Session, refresh_token: str) -> None:
         db.commit()
 
 
+def update_profile(db: Session, user: User, name: str, phone: str | None) -> User:
+    normalized_phone = normalize_phone(phone) if phone else None
+    if phone and normalized_phone is None:
+        raise ValueError("Số điện thoại không hợp lệ")
+
+    if normalized_phone and normalized_phone != user.phone:
+        existing = get_user_by_phone(db, normalized_phone)
+        if existing is not None and existing.id != user.id:
+            raise PhoneAlreadyTakenError(normalized_phone)
+
+    user.name = name
+    user.phone = normalized_phone
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+class InvalidCurrentPasswordError(Exception):
+    pass
+
+
+def change_password(db: Session, user: User, current_password: str, new_password: str) -> None:
+    if not verify_password(current_password, user.password_hash):
+        raise InvalidCurrentPasswordError
+
+    user.password_hash = hash_password(new_password)
+    db.commit()
+
+
 def revoke_all_refresh_tokens_for_user(db: Session, user_id: int) -> None:
     rows = db.execute(
         select(RefreshToken).where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))

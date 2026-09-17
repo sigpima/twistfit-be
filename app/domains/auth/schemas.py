@@ -30,3 +30,13 @@ class AccountResponse(CamelModel):
     email: str | None
     phone: str | None
     role: str
+
+
+class UpdateProfileRequest(CamelModel):
+    name: str
+    phone: str | None = None
+
+
+class ChangePasswordRequest(CamelModel):
+    current_password: str
+    new_password: str

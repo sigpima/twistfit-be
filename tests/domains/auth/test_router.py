@@ -109,3 +109,99 @@ def test_logout_clears_cookies(client):
     assert response.status_code == 200
     response_after = client.get("/auth/me")
     assert response_after.status_code == 401
+
+
+def test_update_me_requires_authentication(client):
+    response = client.patch("/auth/me", json={"name": "Tên mới"})
+    assert response.status_code == 401
+
+
+def test_update_me_updates_name_and_phone(client):
+    client.post(
+        "/auth/register", json={"name": "Linh", "identifier": "update-me@example.com", "password": "password123"}
+    )
+    client.post("/auth/login", json={"identifier": "update-me@example.com", "password": "password123"})
+
+    response = client.patch("/auth/me", json={"name": "Linh Đan", "phone": "0912345678"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "Linh Đan"
+    assert body["phone"] == "+84912345678"
+    assert body["email"] == "update-me@example.com"
+
+
+def test_update_me_can_clear_the_phone_number(client):
+    client.post(
+        "/auth/register",
+        json={"name": "Linh", "identifier": "clear-phone@example.com", "password": "password123"},
+    )
+    client.post("/auth/login", json={"identifier": "clear-phone@example.com", "password": "password123"})
+    client.patch("/auth/me", json={"name": "Linh", "phone": "0912345678"})
+
+    response = client.patch("/auth/me", json={"name": "Linh", "phone": None})
+    assert response.status_code == 200
+    assert response.json()["phone"] is None
+
+
+def test_update_me_rejects_an_invalid_phone(client):
+    client.post(
+        "/auth/register", json={"name": "Linh", "identifier": "bad-phone@example.com", "password": "password123"}
+    )
+    client.post("/auth/login", json={"identifier": "bad-phone@example.com", "password": "password123"})
+
+    response = client.patch("/auth/me", json={"name": "Linh", "phone": "not-a-phone"})
+    assert response.status_code == 422
+
+
+def test_update_me_rejects_a_phone_already_taken_by_another_account(client):
+    client.post(
+        "/auth/register", json={"name": "A", "identifier": "0912345678", "password": "password123"}
+    )
+    client.post(
+        "/auth/register", json={"name": "B", "identifier": "taken-phone@example.com", "password": "password123"}
+    )
+    client.post("/auth/login", json={"identifier": "taken-phone@example.com", "password": "password123"})
+
+    response = client.patch("/auth/me", json={"name": "B", "phone": "0912345678"})
+    assert response.status_code == 409
+
+
+def test_change_password_requires_authentication(client):
+    response = client.post("/auth/me/change-password", json={"currentPassword": "a", "newPassword": "b"})
+    assert response.status_code == 401
+
+
+def test_change_password_updates_the_password(client):
+    client.post(
+        "/auth/register", json={"name": "Linh", "identifier": "change-pw@example.com", "password": "password123"}
+    )
+    client.post("/auth/login", json={"identifier": "change-pw@example.com", "password": "password123"})
+
+    response = client.post(
+        "/auth/me/change-password",
+        json={"currentPassword": "password123", "newPassword": "newpassword456"},
+    )
+    assert response.status_code == 200
+
+    client.post("/auth/logout")
+    old_password_login = client.post(
+        "/auth/login", json={"identifier": "change-pw@example.com", "password": "password123"}
+    )
+    assert old_password_login.status_code == 401
+    new_password_login = client.post(
+        "/auth/login", json={"identifier": "change-pw@example.com", "password": "newpassword456"}
+    )
+    assert new_password_login.status_code == 200
+
+
+def test_change_password_rejects_an_incorrect_current_password(client):
+    client.post(
+        "/auth/register", json={"name": "Linh", "identifier": "wrong-current@example.com", "password": "password123"}
+    )
+    client.post("/auth/login", json={"identifier": "wrong-current@example.com", "password": "password123"})
+
+    response = client.post(
+        "/auth/me/change-password",
+        json={"currentPassword": "wrong-password", "newPassword": "newpassword456"},
+    )
+    assert response.status_code == 401

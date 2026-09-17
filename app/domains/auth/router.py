@@ -8,7 +8,14 @@ from app.deps import get_current_user
 from app.domains.auth import service
 from app.domains.auth.identifier import classify_identifier
 from app.domains.auth.models import User
-from app.domains.auth.schemas import AccountResponse, LoginRequest, RegisterRequest, UserResponse
+from app.domains.auth.schemas import (
+    AccountResponse,
+    ChangePasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    UpdateProfileRequest,
+    UserResponse,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -94,3 +101,26 @@ def refresh(
 @router.get("/me", response_model=AccountResponse)
 def me(user: User = Depends(get_current_user)) -> User:
     return user
+
+
+@router.patch("/me", response_model=AccountResponse)
+def update_me(
+    body: UpdateProfileRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> User:
+    try:
+        return service.update_profile(db, user, name=body.name, phone=body.phone)
+    except service.PhoneAlreadyTakenError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="PHONE_TAKEN")
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="INVALID_PHONE")
+
+
+@router.post("/me/change-password")
+def change_password(
+    body: ChangePasswordRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> dict[str, bool]:
+    try:
+        service.change_password(db, user, current_password=body.current_password, new_password=body.new_password)
+    except service.InvalidCurrentPasswordError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CURRENT_PASSWORD")
+    return {"ok": True}

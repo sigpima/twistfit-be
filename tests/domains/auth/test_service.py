@@ -79,3 +79,31 @@ def test_revoke_all_refresh_tokens_for_user_blocks_future_rotation(db_session):
     service.revoke_all_refresh_tokens_for_user(db_session, user.id)
 
     assert service.rotate_refresh_token(db_session, refresh_token) is None
+
+
+def test_update_profile_updates_name_and_normalized_phone(db_session):
+    user = service.create_user(db_session, name="A", email="profile@example.com", password="password123")
+    updated = service.update_profile(db_session, user, name="A Nguyễn", phone="0912345678")
+    assert updated.name == "A Nguyễn"
+    assert updated.phone == "+84912345678"
+
+
+def test_update_profile_rejects_a_phone_taken_by_another_user(db_session):
+    service.create_user(db_session, name="A", phone="0912345678", password="password123")
+    user_b = service.create_user(db_session, name="B", email="b@example.com", password="password123")
+    with pytest.raises(service.PhoneAlreadyTakenError):
+        service.update_profile(db_session, user_b, name="B", phone="0912345678")
+
+
+def test_change_password_rejects_an_incorrect_current_password(db_session):
+    user = service.create_user(db_session, name="A", email="pw@example.com", password="password123")
+    with pytest.raises(service.InvalidCurrentPasswordError):
+        service.change_password(db_session, user, current_password="wrong", new_password="newpassword456")
+
+
+def test_change_password_rehashes_the_password(db_session):
+    user = service.create_user(db_session, name="A", email="pw2@example.com", password="password123")
+    old_hash = user.password_hash
+    service.change_password(db_session, user, current_password="password123", new_password="newpassword456")
+    assert user.password_hash != old_hash
+    assert service.authenticate_user(db_session, "pw2@example.com", "newpassword456") is not None
