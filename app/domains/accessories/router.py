@@ -40,10 +40,12 @@ def get_upload_url(_admin: User = Depends(require_admin)):
 
 
 @router.post("/suggest-tags")
-def suggest_tags_endpoint(body: SuggestTagsRequest, _admin: User = Depends(require_admin)):
+def suggest_tags_endpoint(
+    body: SuggestTagsRequest, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
+):
     image_bytes = download_bytes("accessories", body.blob_path)
     try:
-        tags = suggest_tags(image_bytes)
+        tags = suggest_tags(image_bytes, db)
     except Exception:  # noqa: BLE001 — any Gemini failure must degrade to the fallback, not 500
         tags = _FALLBACK_SUGGESTION
     return {**tags, "blobUrl": blob_public_url("accessories", body.blob_path)}
@@ -78,7 +80,10 @@ def get_accessory(accessory_id: int, db: Session = Depends(get_db)):
 
 @router.post("", response_model=AccessoryProductResponse, status_code=status.HTTP_201_CREATED)
 def create_accessory(body: AccessoryProductInput, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
-    return service.create_accessory(db, body)
+    try:
+        return service.create_accessory(db, body)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
 
 @router.put("/{accessory_id}", response_model=AccessoryProductResponse)
@@ -88,7 +93,10 @@ def update_accessory(
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin),
 ):
-    updated = service.update_accessory(db, accessory_id, body)
+    try:
+        updated = service.update_accessory(db, accessory_id, body)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy phụ kiện")
     return updated

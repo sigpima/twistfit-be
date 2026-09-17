@@ -53,7 +53,7 @@ def test_suggest_tags_returns_the_gemini_result_and_blob_url(client, db_session,
     monkeypatch.setattr(
         accessories_router,
         "suggest_tags",
-        lambda image_bytes: {
+        lambda image_bytes, db: {
             "category": "tui-xach",
             "styleTags": ["casual"],
             "occasionTags": ["hang-ngay"],
@@ -82,7 +82,7 @@ def test_suggest_tags_falls_back_to_empty_tags_when_gemini_fails(client, db_sess
     Image.new("RGB", (16, 16), (255, 0, 0)).save(buffer, format="PNG")
     upload_bytes("accessories", blob_path, buffer.getvalue())
 
-    def _raise(image_bytes):
+    def _raise(image_bytes, db):
         raise ValueError("Gemini returned malformed JSON")
 
     monkeypatch.setattr(accessories_router, "suggest_tags", _raise)

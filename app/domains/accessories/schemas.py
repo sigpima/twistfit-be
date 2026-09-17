@@ -4,7 +4,6 @@ from pydantic import field_validator
 
 from app.domains.auth.schemas import CamelModel
 from app.domains.quiz_attempts.schemas import PARENT_SEASONS
-from app.domains.wardrobe.schemas import OCCASION_TAGS, STYLE_TAGS
 
 ACCESSORY_CATEGORIES = ["tui-xach", "giay", "trang-suc", "mu-non", "khan"]
 
@@ -30,20 +29,6 @@ class AccessoryProductInput(CamelModel):
     def category_valid(cls, value: str) -> str:
         if value not in ACCESSORY_CATEGORIES:
             raise ValueError("Danh mục phụ kiện không hợp lệ")
-        return value
-
-    @field_validator("style_tags")
-    @classmethod
-    def style_tags_valid(cls, value: list[str]) -> list[str]:
-        if not value or any(tag not in STYLE_TAGS for tag in value):
-            raise ValueError("Tag phong cách không hợp lệ")
-        return value
-
-    @field_validator("occasion_tags")
-    @classmethod
-    def occasion_tags_valid(cls, value: list[str]) -> list[str]:
-        if not value or any(tag not in OCCASION_TAGS for tag in value):
-            raise ValueError("Tag dịp không hợp lệ")
         return value
 
     @field_validator("tone_tags")

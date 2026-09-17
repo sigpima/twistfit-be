@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.domains.accessories.models import AccessoryProduct
 from app.domains.accessories.schemas import AccessoryProductInput
+from app.domains.taxonomy import service as taxonomy_service
 
 
 def list_accessories(db: Session) -> list[AccessoryProduct]:
@@ -12,7 +13,25 @@ def get_accessory(db: Session, accessory_id: int) -> AccessoryProduct | None:
     return db.get(AccessoryProduct, accessory_id)
 
 
+def _validate_style_and_occasion_tags(db: Session, style_tags: list[str], occasion_tags: list[str]) -> None:
+    if not style_tags:
+        raise ValueError("Chọn ít nhất 1 tag phong cách")
+    if not occasion_tags:
+        raise ValueError("Chọn ít nhất 1 tag dịp")
+
+    valid_styles = taxonomy_service.get_group_values(db, "style")
+    for tag in style_tags:
+        if tag not in valid_styles:
+            raise ValueError(f'Tag phong cách "{tag}" không hợp lệ')
+
+    valid_occasions = taxonomy_service.get_group_values(db, "occasion")
+    for tag in occasion_tags:
+        if tag not in valid_occasions:
+            raise ValueError(f'Tag dịp "{tag}" không hợp lệ')
+
+
 def create_accessory(db: Session, data: AccessoryProductInput) -> AccessoryProduct:
+    _validate_style_and_occasion_tags(db, data.style_tags, data.occasion_tags)
     accessory = AccessoryProduct(**data.model_dump())
     db.add(accessory)
     db.commit()
@@ -24,6 +43,7 @@ def update_accessory(db: Session, accessory_id: int, data: AccessoryProductInput
     accessory = get_accessory(db, accessory_id)
     if accessory is None:
         return None
+    _validate_style_and_occasion_tags(db, data.style_tags, data.occasion_tags)
     for field, value in data.model_dump().items():
         setattr(accessory, field, value)
     db.commit()

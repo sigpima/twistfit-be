@@ -1,6 +1,8 @@
 from app.domains.accessories.models import AccessoryProduct
 from app.domains.auth.models import User
 from app.domains.quiz_attempts.models import QuizAttempt
+from app.domains.taxonomy.schemas import TaxonomyGroupInput, TaxonomyValueInput
+from app.domains.taxonomy import service as taxonomy_service
 
 VALID_BODY = {
     "name": "Túi tote nâu",
@@ -18,6 +20,16 @@ def _promote_to_admin(db_session, email: str) -> None:
 
     db_session.query(User).filter(User.email == email).update({"role": "admin"})
     db_session.commit()
+
+
+def _seed_style_and_occasion(db_session) -> None:
+    style = taxonomy_service.create_group(db_session, TaxonomyGroupInput(key="style", label="Loại phong cách"))
+    taxonomy_service.create_value(db_session, style.id, TaxonomyValueInput(key="casual", label="Casual"))
+    taxonomy_service.create_value(db_session, style.id, TaxonomyValueInput(key="formal", label="Formal"))
+
+    occasion = taxonomy_service.create_group(db_session, TaxonomyGroupInput(key="occasion", label="Loại dịp"))
+    taxonomy_service.create_value(db_session, occasion.id, TaxonomyValueInput(key="hang-ngay", label="Hằng ngày"))
+    taxonomy_service.create_value(db_session, occasion.id, TaxonomyValueInput(key="du-tiec", label="Dự tiệc"))
 
 
 def test_list_accessories_is_public(client):
@@ -46,6 +58,7 @@ def test_create_accessory_requires_admin_role(client):
 
 
 def test_admin_can_create_get_update_and_delete_accessory(client, db_session):
+    _seed_style_and_occasion(db_session)
     client.post(
         "/auth/register", json={"name": "Admin", "identifier": "accessory-admin@example.com", "password": "password123"}
     )
@@ -71,6 +84,7 @@ def test_admin_can_create_get_update_and_delete_accessory(client, db_session):
 
 
 def test_create_accessory_rejects_an_invalid_category(client, db_session):
+    _seed_style_and_occasion(db_session)
     client.post(
         "/auth/register", json={"name": "Admin", "identifier": "accessory-admin2@example.com", "password": "password123"}
     )
@@ -82,6 +96,7 @@ def test_create_accessory_rejects_an_invalid_category(client, db_session):
 
 
 def test_create_accessory_rejects_empty_style_tags(client, db_session):
+    _seed_style_and_occasion(db_session)
     client.post(
         "/auth/register", json={"name": "Admin", "identifier": "accessory-admin3@example.com", "password": "password123"}
     )
@@ -89,7 +104,7 @@ def test_create_accessory_rejects_empty_style_tags(client, db_session):
     client.post("/auth/login", json={"identifier": "accessory-admin3@example.com", "password": "password123"})
 
     response = client.post("/accessories", json={**VALID_BODY, "styleTags": []})
-    assert response.status_code == 422
+    assert response.status_code == 400
 
 
 def _seed_product(db_session, **overrides) -> AccessoryProduct:
