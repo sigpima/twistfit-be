@@ -22,6 +22,7 @@ from app.domains.forum import models as forum_models  # noqa: F401
 from app.domains.wardrobe import models as wardrobe_models  # noqa: F401
 from app.domains.tryon import models as tryon_models  # noqa: F401
 from app.domains.accessories import models as accessories_models  # noqa: F401
+from app.domains.taxonomy import models as taxonomy_models  # noqa: F401
 
 config = context.config
 if not config.get_main_option("sqlalchemy.url"):
