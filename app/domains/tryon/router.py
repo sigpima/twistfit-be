@@ -50,6 +50,11 @@ def create_tryon_job(
     return job
 
 
+@router.get("", response_model=list[TryOnJobResponse])
+def list_tryon_jobs(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return service.list_jobs(db, user.id)
+
+
 @router.get("/{job_id}", response_model=TryOnJobResponse)
 def get_tryon_job(job_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     job = service.get_job(db, user.id, job_id)

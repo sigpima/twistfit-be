@@ -52,6 +52,40 @@ def test_create_and_fetch_job(client, db_session):
     assert get_response.json()["status"] in ("pending", "processing", "done", "failed")
 
 
+def test_list_jobs_requires_authentication(client):
+    response = client.get("/tryon")
+    assert response.status_code == 401
+
+
+def test_list_jobs_returns_only_the_current_users_jobs_newest_first(client, db_session):
+    _login(client, "tryon-list-1@example.com")
+    model = _seed_catalog_model(db_session)
+    first = client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay", "style": "casual"})
+    second = client.post("/tryon", json={"catalogModelId": model.id, "occasion": "du-tiec", "style": "formal"})
+
+    client.post("/auth/logout")
+    _login(client, "tryon-list-2@example.com")
+    other_job = client.post(
+        "/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay", "style": "casual"}
+    )
+
+    client.post("/auth/logout")
+    _login(client, "tryon-list-1@example.com")
+    response = client.get("/tryon")
+
+    assert response.status_code == 200
+    job_ids = [job["id"] for job in response.json()]
+    assert job_ids == [second.json()["id"], first.json()["id"]]
+    assert other_job.json()["id"] not in job_ids
+
+
+def test_list_jobs_returns_an_empty_list_for_a_user_with_no_jobs(client):
+    _login(client, "tryon-list-empty@example.com")
+    response = client.get("/tryon")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_get_job_404s_for_another_users_job(client, db_session):
     _login(client, "tryon-router-3@example.com")
     model = _seed_catalog_model(db_session)

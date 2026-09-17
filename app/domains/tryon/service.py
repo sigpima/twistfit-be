@@ -35,6 +35,10 @@ def get_job(db: Session, user_id: int, job_id: int) -> TryOnJob | None:
     return db.query(TryOnJob).filter(TryOnJob.id == job_id, TryOnJob.user_id == user_id).first()
 
 
+def list_jobs(db: Session, user_id: int) -> list[TryOnJob]:
+    return db.query(TryOnJob).filter(TryOnJob.user_id == user_id).order_by(TryOnJob.created_at.desc()).all()
+
+
 def process_job(db: Session, job_id: int, season: str, front_image_url: str, side_image_url: str | None = None) -> None:
     job = db.get(TryOnJob, job_id)
     if job is None:
