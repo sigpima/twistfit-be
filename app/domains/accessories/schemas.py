@@ -54,6 +54,10 @@ class AccessoryProductInput(CamelModel):
         return value
 
 
+class SuggestTagsRequest(CamelModel):
+    blob_path: str
+
+
 class AccessoryProductResponse(CamelModel):
     id: int
     name: str

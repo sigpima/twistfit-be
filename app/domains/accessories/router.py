@@ -1,13 +1,50 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.blob_storage import blob_public_url, download_bytes, ensure_container, generate_upload_sas_url
 from app.db.session import get_db
 from app.deps import require_admin
 from app.domains.accessories import service
-from app.domains.accessories.schemas import AccessoryProductInput, AccessoryProductResponse
+from app.domains.accessories.gemini_client import suggest_tags
+from app.domains.accessories.schemas import (
+    ACCESSORY_CATEGORIES,
+    AccessoryProductInput,
+    AccessoryProductResponse,
+    SuggestTagsRequest,
+)
 from app.domains.auth.models import User
 
 router = APIRouter(prefix="/accessories", tags=["accessories"])
+
+# Gemini can fail independently of the upload (rate limit, outage,
+# malformed response) — fall back to an empty-but-valid suggestion so the
+# admin still gets the image back to tag by hand, instead of a dead end.
+_FALLBACK_SUGGESTION = {
+    "category": ACCESSORY_CATEGORIES[0],
+    "styleTags": [],
+    "occasionTags": [],
+    "toneTags": [],
+}
+
+
+@router.post("/upload-url")
+def get_upload_url(_admin: User = Depends(require_admin)):
+    ensure_container("accessories")
+    blob_path = f"{uuid.uuid4()}.png"
+    upload_url = generate_upload_sas_url("accessories", blob_path)
+    return {"uploadUrl": upload_url, "blobPath": blob_path}
+
+
+@router.post("/suggest-tags")
+def suggest_tags_endpoint(body: SuggestTagsRequest, _admin: User = Depends(require_admin)):
+    image_bytes = download_bytes("accessories", body.blob_path)
+    try:
+        tags = suggest_tags(image_bytes)
+    except Exception:  # noqa: BLE001 — any Gemini failure must degrade to the fallback, not 500
+        tags = _FALLBACK_SUGGESTION
+    return {**tags, "blobUrl": blob_public_url("accessories", body.blob_path)}
 
 
 @router.get("", response_model=list[AccessoryProductResponse])
