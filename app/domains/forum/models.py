@@ -16,6 +16,8 @@ class ForumPost(Base):
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
@@ -26,7 +28,7 @@ class ForumPost(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
-    author: Mapped["User"] = relationship()
+    author: Mapped["User"] = relationship(foreign_keys=[author_id])
 
 
 class ForumReport(Base):

@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.domains.forum.models import ForumBookmark, ForumComment, ForumLike, ForumPost, ForumReport
@@ -16,7 +18,7 @@ class InvalidStatusTransitionError(Exception):
 
 
 def list_published_posts(db: Session, category: str | None) -> list[ForumPost]:
-    query = db.query(ForumPost).filter(ForumPost.status == "published")
+    query = db.query(ForumPost).filter(ForumPost.status == "published", ForumPost.deleted_at.is_(None))
     if category is not None:
         query = query.filter(ForumPost.category == category)
     return query.order_by(ForumPost.id.desc()).all()
@@ -24,7 +26,10 @@ def list_published_posts(db: Session, category: str | None) -> list[ForumPost]:
 
 def list_posts_by_author(db: Session, author_id: int) -> list[ForumPost]:
     return (
-        db.query(ForumPost).filter(ForumPost.author_id == author_id).order_by(ForumPost.id.desc()).all()
+        db.query(ForumPost)
+        .filter(ForumPost.author_id == author_id, ForumPost.deleted_at.is_(None))
+        .order_by(ForumPost.id.desc())
+        .all()
     )
 
 
@@ -32,14 +37,19 @@ def list_saved_posts(db: Session, user_id: int) -> list[ForumPost]:
     return (
         db.query(ForumPost)
         .join(ForumBookmark, ForumBookmark.post_id == ForumPost.id)
-        .filter(ForumBookmark.user_id == user_id)
+        .filter(ForumBookmark.user_id == user_id, ForumPost.deleted_at.is_(None))
         .order_by(ForumBookmark.id.desc())
         .all()
     )
 
 
 def list_pending_posts(db: Session) -> list[ForumPost]:
-    return db.query(ForumPost).filter(ForumPost.status == "pending").order_by(ForumPost.id.asc()).all()
+    return (
+        db.query(ForumPost)
+        .filter(ForumPost.status == "pending", ForumPost.deleted_at.is_(None))
+        .order_by(ForumPost.id.asc())
+        .all()
+    )
 
 
 def get_post(db: Session, post_id: int) -> ForumPost | None:
@@ -85,11 +95,12 @@ def update_post(db: Session, post_id: int, data: ForumPostCreate) -> ForumPost |
     return post
 
 
-def delete_post(db: Session, post_id: int) -> bool:
+def delete_post(db: Session, post_id: int, deleted_by_id: int) -> bool:
     post = get_post(db, post_id)
-    if post is None:
+    if post is None or post.deleted_at is not None:
         return False
-    db.delete(post)
+    post.deleted_at = datetime.now(timezone.utc)
+    post.deleted_by_id = deleted_by_id
     db.commit()
     return True
 
@@ -221,7 +232,11 @@ def build_comment_response(comment: ForumComment, viewer_id: int | None, viewer_
     }
 
 
-def build_post_response(db: Session, post: ForumPost, viewer_id: int | None) -> dict:
+def build_post_response(
+    db: Session, post: ForumPost, viewer_id: int | None, viewer_role: str | None = None
+) -> dict:
+    can_delete = viewer_id is not None and (viewer_id == post.author_id or viewer_role == "admin")
+    deleted_by_admin = None if post.deleted_at is None else post.deleted_by_id != post.author_id
     return {
         "id": post.id,
         "title": post.title,
@@ -235,6 +250,9 @@ def build_post_response(db: Session, post: ForumPost, viewer_id: int | None) -> 
         "liked_by_me": viewer_id is not None and user_has_liked(db, post.id, viewer_id),
         "comment_count": count_comments(db, post.id),
         "bookmarked_by_me": viewer_id is not None and user_has_bookmarked(db, post.id, viewer_id),
+        "can_delete": can_delete,
+        "deleted_at": post.deleted_at,
+        "deleted_by_admin": deleted_by_admin,
         "created_at": post.created_at,
         "updated_at": post.updated_at,
     }

@@ -41,13 +41,14 @@ def list_posts(
     valid_category = category if category in FORUM_CATEGORIES else None
     posts = service.list_published_posts(db, valid_category)
     viewer_id = viewer.id if viewer else None
-    return [service.build_post_response(db, post, viewer_id) for post in posts]
+    viewer_role = viewer.role if viewer else None
+    return [service.build_post_response(db, post, viewer_id, viewer_role) for post in posts]
 
 
 @router.post("/posts", response_model=ForumPostResponse, status_code=status.HTTP_201_CREATED)
 def create_post(body: ForumPostCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     post = service.create_post(db, user.id, body)
-    return service.build_post_response(db, post, user.id)
+    return service.build_post_response(db, post, user.id, user.role)
 
 
 # Registered before /posts/{post_id} — a literal "mine" segment would
@@ -55,13 +56,13 @@ def create_post(body: ForumPostCreate, db: Session = Depends(get_db), user: User
 @router.get("/posts/mine", response_model=list[ForumPostResponse])
 def list_my_posts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     posts = service.list_posts_by_author(db, user.id)
-    return [service.build_post_response(db, post, user.id) for post in posts]
+    return [service.build_post_response(db, post, user.id, user.role) for post in posts]
 
 
 @router.get("/posts/saved", response_model=list[ForumPostResponse])
 def list_saved_posts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     posts = service.list_saved_posts(db, user.id)
-    return [service.build_post_response(db, post, user.id) for post in posts]
+    return [service.build_post_response(db, post, user.id, user.role) for post in posts]
 
 
 @router.get("/posts/{post_id}", response_model=ForumPostResponse)
@@ -75,7 +76,7 @@ def get_post(
     viewer_role = viewer.role if viewer else None
     if post is None or not service.can_view_post(post, viewer_id, viewer_role):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bài viết")
-    return service.build_post_response(db, post, viewer_id)
+    return service.build_post_response(db, post, viewer_id, viewer_role)
 
 
 @router.put("/posts/{post_id}", response_model=ForumPostResponse)
@@ -91,17 +92,17 @@ def update_post(
     if post.author_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền sửa bài này")
     updated = service.update_post(db, post_id, body)
-    return service.build_post_response(db, updated, user.id)
+    return service.build_post_response(db, updated, user.id, user.role)
 
 
 @router.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(post_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     post = service.get_post(db, post_id)
-    if post is None:
+    if post is None or post.deleted_at is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bài viết")
     if post.author_id != user.id and user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền xóa bài này")
-    service.delete_post(db, post_id)
+    service.delete_post(db, post_id, user.id)
 
 
 @router.patch("/posts/{post_id}", response_model=ForumPostResponse)
@@ -117,7 +118,7 @@ def update_post_status(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="INVALID_STATUS_TRANSITION")
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bài viết")
-    return service.build_post_response(db, updated, admin.id)
+    return service.build_post_response(db, updated, admin.id, admin.role)
 
 
 @router.post("/posts/{post_id}/report", response_model=ForumReportResponse, status_code=status.HTTP_201_CREATED)
@@ -193,7 +194,7 @@ def delete_comment(comment_id: int, db: Session = Depends(get_db), user: User = 
 @router.get("/moderation/pending", response_model=list[ForumPostResponse])
 def list_pending_posts(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     posts = service.list_pending_posts(db)
-    return [service.build_post_response(db, post, admin.id) for post in posts]
+    return [service.build_post_response(db, post, admin.id, admin.role) for post in posts]
 
 
 @router.get("/moderation/reports", response_model=list[ForumReportResponse])

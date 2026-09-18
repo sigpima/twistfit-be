@@ -62,6 +62,9 @@ class ForumPostResponse(CamelModel):
     liked_by_me: bool
     comment_count: int
     bookmarked_by_me: bool
+    can_delete: bool
+    deleted_at: datetime | None
+    deleted_by_admin: bool | None
     created_at: datetime
     updated_at: datetime
 

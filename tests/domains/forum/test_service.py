@@ -89,12 +89,60 @@ def test_update_post_returns_none_when_missing(db_session):
     assert service.update_post(db_session, 999999, VALID_POST) is None
 
 
-def test_delete_post_removes_it(db_session):
+def test_delete_post_soft_deletes_it(db_session):
     user = _make_user(db_session, "forum-svc-9@example.com")
     post = service.create_post(db_session, user.id, VALID_POST)
-    assert service.delete_post(db_session, post.id) is True
-    assert service.get_post(db_session, post.id) is None
-    assert service.delete_post(db_session, post.id) is False
+    assert service.delete_post(db_session, post.id, deleted_by_id=user.id) is True
+
+    reloaded = service.get_post(db_session, post.id)
+    assert reloaded is not None
+    assert reloaded.deleted_at is not None
+    assert reloaded.deleted_by_id == user.id
+
+
+def test_delete_post_returns_false_when_already_deleted(db_session):
+    user = _make_user(db_session, "forum-svc-9b@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+    service.delete_post(db_session, post.id, deleted_by_id=user.id)
+    assert service.delete_post(db_session, post.id, deleted_by_id=user.id) is False
+
+
+def test_delete_post_returns_false_when_missing(db_session):
+    assert service.delete_post(db_session, 999999, deleted_by_id=1) is False
+
+
+def test_list_published_posts_excludes_deleted(db_session):
+    user = _make_user(db_session, "forum-svc-9c@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+    service.set_post_status(db_session, post.id, "published")
+    service.delete_post(db_session, post.id, deleted_by_id=user.id)
+
+    assert service.list_published_posts(db_session, None) == []
+
+
+def test_list_posts_by_author_excludes_deleted(db_session):
+    user = _make_user(db_session, "forum-svc-9d@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+    service.delete_post(db_session, post.id, deleted_by_id=user.id)
+
+    assert service.list_posts_by_author(db_session, user.id) == []
+
+
+def test_list_pending_posts_excludes_deleted(db_session):
+    user = _make_user(db_session, "forum-svc-9e@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+    service.delete_post(db_session, post.id, deleted_by_id=user.id)
+
+    assert service.list_pending_posts(db_session) == []
+
+
+def test_list_saved_posts_excludes_deleted(db_session):
+    user = _make_user(db_session, "forum-svc-9f@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+    service.toggle_bookmark(db_session, post.id, user.id)
+    service.delete_post(db_session, post.id, deleted_by_id=user.id)
+
+    assert service.list_saved_posts(db_session, user.id) == []
 
 
 def test_set_post_status_valid_transition(db_session):
@@ -165,6 +213,61 @@ def test_build_post_response_includes_author_name_and_zeroed_counts(db_session):
     assert data["like_count"] == 0
     assert data["liked_by_me"] is False
     assert data["comment_count"] == 0
+
+
+def test_build_post_response_allows_delete_for_the_author(db_session):
+    user = _make_user(db_session, "forum-svc-shape4@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+
+    data = service.build_post_response(db_session, post, viewer_id=user.id, viewer_role="user")
+    assert data["can_delete"] is True
+
+
+def test_build_post_response_allows_delete_for_an_admin(db_session):
+    user = _make_user(db_session, "forum-svc-shape5@example.com")
+    other = _make_user(db_session, "forum-svc-shape6@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+
+    data = service.build_post_response(db_session, post, viewer_id=other.id, viewer_role="admin")
+    assert data["can_delete"] is True
+
+
+def test_build_post_response_forbids_delete_for_a_stranger(db_session):
+    user = _make_user(db_session, "forum-svc-shape7@example.com")
+    other = _make_user(db_session, "forum-svc-shape8@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+
+    data = service.build_post_response(db_session, post, viewer_id=other.id, viewer_role="user")
+    assert data["can_delete"] is False
+
+
+def test_build_post_response_reports_deletion_by_the_author(db_session):
+    user = _make_user(db_session, "forum-svc-shape9@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+    service.delete_post(db_session, post.id, deleted_by_id=user.id)
+
+    data = service.build_post_response(db_session, service.get_post(db_session, post.id), viewer_id=user.id)
+    assert data["deleted_at"] is not None
+    assert data["deleted_by_admin"] is False
+
+
+def test_build_post_response_reports_deletion_by_an_admin(db_session):
+    user = _make_user(db_session, "forum-svc-shape10@example.com")
+    admin = _make_user(db_session, "forum-svc-shape11@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+    service.delete_post(db_session, post.id, deleted_by_id=admin.id)
+
+    data = service.build_post_response(db_session, service.get_post(db_session, post.id), viewer_id=user.id)
+    assert data["deleted_by_admin"] is True
+
+
+def test_build_post_response_deleted_by_admin_is_none_when_not_deleted(db_session):
+    user = _make_user(db_session, "forum-svc-shape12@example.com")
+    post = service.create_post(db_session, user.id, VALID_POST)
+
+    data = service.build_post_response(db_session, post, viewer_id=user.id)
+    assert data["deleted_at"] is None
+    assert data["deleted_by_admin"] is None
 
 
 def test_create_post_persists_an_image_url(db_session):

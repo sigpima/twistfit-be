@@ -169,6 +169,53 @@ def test_delete_post_returns_404_when_missing(client):
     assert client.delete("/forum/posts/999999").status_code == 404
 
 
+def test_delete_post_returns_404_when_already_deleted(client):
+    _register_and_login(client, "forum-owner11@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    client.delete(f"/forum/posts/{post['id']}")
+    assert client.delete(f"/forum/posts/{post['id']}").status_code == 404
+
+
+def test_get_post_still_visible_after_the_owner_deletes_it_with_deletion_info(client):
+    _register_and_login(client, "forum-owner12@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    client.delete(f"/forum/posts/{post['id']}")
+
+    response = client.get(f"/forum/posts/{post['id']}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["deletedAt"] is not None
+    assert body["deletedByAdmin"] is False
+
+
+def test_get_post_reports_deleted_by_admin_when_an_admin_deletes_it(client, db_session):
+    _register_and_login(client, "forum-owner13@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, post["id"])
+
+    _register_and_login(client, "forum-admin-deleter2@example.com")
+    _promote_to_admin_and_relogin(client, db_session, "forum-admin-deleter2@example.com")
+    client.delete(f"/forum/posts/{post['id']}")
+
+    response = client.get(f"/forum/posts/{post['id']}")
+    assert response.json()["deletedByAdmin"] is True
+
+
+def test_list_posts_excludes_a_deleted_post(client, db_session):
+    _register_and_login(client, "forum-owner14@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    _publish(db_session, post["id"])
+    client.delete(f"/forum/posts/{post['id']}")
+
+    assert client.get("/forum/posts").json() == []
+
+
+def test_post_response_includes_can_delete_for_the_owner(client):
+    _register_and_login(client, "forum-owner15@example.com")
+    post = client.post("/forum/posts", json=VALID_BODY).json()
+    assert post["canDelete"] is True
+
+
 def test_update_post_status_requires_authentication(client):
     assert client.patch("/forum/posts/1", json={"status": "published"}).status_code == 401
 
