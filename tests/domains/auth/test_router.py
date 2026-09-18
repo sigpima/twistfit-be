@@ -49,7 +49,17 @@ def test_login_sets_cookies_and_returns_account(client):
     )
     response = client.post("/auth/login", json={"identifier": "login@example.com", "password": "password123"})
     assert response.status_code == 200
-    assert response.json() == {"name": "Linh", "email": "login@example.com", "phone": None, "role": "user"}
+    body = response.json()
+    assert body["name"] == "Linh"
+    assert body["email"] == "login@example.com"
+    assert body["phone"] is None
+    assert body["role"] == "user"
+    assert body["username"] is None
+    assert body["birthDate"] is None
+    assert body["gender"] is None
+    assert body["heightCm"] is None
+    assert body["weightKg"] is None
+    assert "createdAt" in body
     assert "access_token" in response.cookies
     assert "refresh_token" in response.cookies
 
@@ -163,6 +173,44 @@ def test_update_me_rejects_a_phone_already_taken_by_another_account(client):
     client.post("/auth/login", json={"identifier": "taken-phone@example.com", "password": "password123"})
 
     response = client.patch("/auth/me", json={"name": "B", "phone": "0912345678"})
+    assert response.status_code == 409
+
+
+def test_update_me_updates_the_new_profile_fields(client):
+    client.post(
+        "/auth/register", json={"name": "Linh", "identifier": "profile-fields@example.com", "password": "password123"}
+    )
+    client.post("/auth/login", json={"identifier": "profile-fields@example.com", "password": "password123"})
+
+    response = client.patch(
+        "/auth/me",
+        json={
+            "name": "Linh",
+            "username": "linh_dan",
+            "birthDate": "2000-05-20",
+            "gender": "female",
+            "heightCm": 162.5,
+            "weightKg": 50.5,
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["username"] == "linh_dan"
+    assert body["birthDate"] == "2000-05-20"
+    assert body["gender"] == "female"
+    assert body["heightCm"] == 162.5
+    assert body["weightKg"] == 50.5
+
+
+def test_update_me_rejects_a_username_already_taken_by_another_account(client):
+    client.post("/auth/register", json={"name": "A", "identifier": "user-a@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "user-a@example.com", "password": "password123"})
+    client.patch("/auth/me", json={"name": "A", "username": "twistfan"})
+
+    client.post("/auth/register", json={"name": "B", "identifier": "user-b@example.com", "password": "password123"})
+    client.post("/auth/login", json={"identifier": "user-b@example.com", "password": "password123"})
+
+    response = client.patch("/auth/me", json={"name": "B", "username": "twistfan"})
     assert response.status_code == 409
 
 

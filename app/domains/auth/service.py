@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,6 +23,10 @@ class PhoneAlreadyTakenError(Exception):
     pass
 
 
+class UsernameAlreadyTakenError(Exception):
+    pass
+
+
 def normalize_email(email: str) -> str:
     return email.strip().lower()
 
@@ -36,6 +40,10 @@ def get_user_by_phone(db: Session, phone: str) -> User | None:
     if normalized is None:
         return None
     return db.execute(select(User).where(User.phone == normalized)).scalar_one_or_none()
+
+
+def get_user_by_username(db: Session, username: str) -> User | None:
+    return db.execute(select(User).where(User.username == username)).scalar_one_or_none()
 
 
 def get_user_by_identifier(db: Session, identifier: str) -> User | None:
@@ -129,7 +137,17 @@ def revoke_refresh_token(db: Session, refresh_token: str) -> None:
         db.commit()
 
 
-def update_profile(db: Session, user: User, name: str, phone: str | None) -> User:
+def update_profile(
+    db: Session,
+    user: User,
+    name: str,
+    phone: str | None,
+    username: str | None = None,
+    birth_date: date | None = None,
+    gender: str | None = None,
+    height_cm: float | None = None,
+    weight_kg: float | None = None,
+) -> User:
     normalized_phone = normalize_phone(phone) if phone else None
     if phone and normalized_phone is None:
         raise ValueError("Số điện thoại không hợp lệ")
@@ -139,8 +157,19 @@ def update_profile(db: Session, user: User, name: str, phone: str | None) -> Use
         if existing is not None and existing.id != user.id:
             raise PhoneAlreadyTakenError(normalized_phone)
 
+    normalized_username = username.strip() if username else None
+    if normalized_username and normalized_username != user.username:
+        existing = get_user_by_username(db, normalized_username)
+        if existing is not None and existing.id != user.id:
+            raise UsernameAlreadyTakenError(normalized_username)
+
     user.name = name
     user.phone = normalized_phone
+    user.username = normalized_username
+    user.birth_date = birth_date
+    user.gender = gender
+    user.height_cm = height_cm
+    user.weight_kg = weight_kg
     db.commit()
     db.refresh(user)
     return user

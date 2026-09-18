@@ -108,9 +108,21 @@ def update_me(
     body: UpdateProfileRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> User:
     try:
-        return service.update_profile(db, user, name=body.name, phone=body.phone)
+        return service.update_profile(
+            db,
+            user,
+            name=body.name,
+            phone=body.phone,
+            username=body.username,
+            birth_date=body.birth_date,
+            gender=body.gender,
+            height_cm=body.height_cm,
+            weight_kg=body.weight_kg,
+        )
     except service.PhoneAlreadyTakenError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="PHONE_TAKEN")
+    except service.UsernameAlreadyTakenError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="USERNAME_TAKEN")
     except ValueError:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="INVALID_PHONE")
 

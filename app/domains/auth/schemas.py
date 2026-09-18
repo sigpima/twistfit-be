@@ -1,3 +1,5 @@
+from datetime import date, datetime
+
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
@@ -27,14 +29,25 @@ class UserResponse(CamelModel):
 
 class AccountResponse(CamelModel):
     name: str
+    username: str | None
     email: str | None
     phone: str | None
     role: str
+    birth_date: date | None
+    gender: str | None
+    height_cm: float | None
+    weight_kg: float | None
+    created_at: datetime
 
 
 class UpdateProfileRequest(CamelModel):
     name: str
+    username: str | None = None
     phone: str | None = None
+    birth_date: date | None = None
+    gender: str | None = None
+    height_cm: float | None = None
+    weight_kg: float | None = None
 
 
 class ChangePasswordRequest(CamelModel):
