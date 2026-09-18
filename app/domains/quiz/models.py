@@ -27,6 +27,7 @@ class QuizOption(Base):
     )
     label: Mapped[str] = mapped_column(String(255), nullable=False)
     axis_value: Mapped[str] = mapped_column(String(20), nullable=False)
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     question: Mapped["QuizQuestion"] = relationship(back_populates="options")

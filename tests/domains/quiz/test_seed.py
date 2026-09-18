@@ -7,7 +7,7 @@ def test_seed_demo_quiz_questions_creates_ten_questions(db_session):
     questions = db_session.query(QuizQuestion).order_by(QuizQuestion.sort_order.asc()).all()
     assert len(questions) == 10
     assert questions[0].axis == "hue"
-    assert questions[0].image_url == "/personal-color/quiz/wrist-veins.jpg"
+    assert questions[0].image_url == "/personal-color/quiz/q1-veins.jpg"
     assert questions[0].options[0].label == "Xanh lá / Olive"
     assert questions[0].options[0].axis_value == "warm"
 

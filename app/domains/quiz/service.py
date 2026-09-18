@@ -20,7 +20,13 @@ def create_quiz_question(db: Session, data: QuizQuestionInput) -> QuizQuestion:
     db.flush()
     for index, option in enumerate(data.options):
         db.add(
-            QuizOption(question_id=question.id, label=option.label, axis_value=option.axis_value, sort_order=index)
+            QuizOption(
+                question_id=question.id,
+                label=option.label,
+                axis_value=option.axis_value,
+                image_url=option.image_url,
+                sort_order=index,
+            )
         )
     db.commit()
     db.refresh(question)
@@ -40,7 +46,13 @@ def update_quiz_question(db: Session, question_id: int, data: QuizQuestionInput)
     db.flush()
     for index, option in enumerate(data.options):
         db.add(
-            QuizOption(question_id=question.id, label=option.label, axis_value=option.axis_value, sort_order=index)
+            QuizOption(
+                question_id=question.id,
+                label=option.label,
+                axis_value=option.axis_value,
+                image_url=option.image_url,
+                sort_order=index,
+            )
         )
     db.commit()
     db.refresh(question)

@@ -13,6 +13,7 @@ AXIS_VALUES = {
 class QuizOptionInput(CamelModel):
     label: str
     axis_value: str
+    image_url: str | None = None
 
     @field_validator("label")
     @classmethod
@@ -63,6 +64,7 @@ class QuizOptionResponse(CamelModel):
     id: int
     label: str
     axis_value: str
+    image_url: str | None
     sort_order: int
 
 
