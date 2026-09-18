@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 
@@ -30,3 +30,21 @@ class TryOnJob(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+    items: Mapped[list["TryOnJobItem"]] = relationship(order_by="TryOnJobItem.sort_order")
+
+
+class TryOnJobItem(Base):
+    """One wardrobe item applied as part of a job's outfit combo, in the
+    order it was applied (a áo khoác, if present, is always last)."""
+
+    __tablename__ = "tryon_job_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tryon_job_id: Mapped[int] = mapped_column(
+        ForeignKey("tryon_jobs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    wardrobe_item_id: Mapped[int] = mapped_column(
+        ForeignKey("wardrobe_items.id", ondelete="CASCADE"), nullable=False
+    )
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False)
