@@ -17,7 +17,9 @@ CLOTH_TYPE_BY_CLOTHING_TYPE = {
 }
 
 
-def create_job(db: Session, user_id: int, catalog_model_id: int, occasion: str, style: str) -> TryOnJob:
+def create_job(
+    db: Session, user_id: int, catalog_model_id: int, occasion: str | None, style: str | None
+) -> TryOnJob:
     job = TryOnJob(
         user_id=user_id,
         catalog_model_id=catalog_model_id,
@@ -48,12 +50,13 @@ def process_job(db: Session, job_id: int, season: str, front_image_url: str, sid
     db.commit()
 
     try:
+        tag_attribute = "occasion" if job.occasion is not None else "style"
+        tag_value = job.occasion if job.occasion is not None else job.style
         candidates = (
             db.query(WardrobeItem)
             .filter(
                 WardrobeItem.user_id == job.user_id,
-                cast(WardrobeItem.attributes["occasion"], JSONB).contains([job.occasion]),
-                cast(WardrobeItem.attributes["style"], JSONB).contains([job.style]),
+                cast(WardrobeItem.attributes[tag_attribute], JSONB).contains([tag_value]),
             )
             .all()
         )

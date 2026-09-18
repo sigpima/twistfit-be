@@ -35,7 +35,7 @@ def test_process_job_completes_successfully(db_session, monkeypatch):
             dominant_colors=["#F2A93B"],
         ),
     )
-    job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style="casual")
+    job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
     ensured_containers = []
     monkeypatch.setattr(tryon_service, "ensure_container", ensured_containers.append)
@@ -71,7 +71,7 @@ def test_process_job_leaves_the_side_result_null_when_no_side_image_is_given(db_
             dominant_colors=["#F2A93B"],
         ),
     )
-    job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style="casual")
+    job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
     monkeypatch.setattr(tryon_service, "ensure_container", lambda container: None)
     monkeypatch.setattr(tryon_service, "download_bytes_from_url", lambda url: b"fake-image-bytes")
@@ -112,7 +112,7 @@ def test_process_job_passes_the_cloth_type_matching_the_garment_category(
             dominant_colors=["#F2A93B"],
         ),
     )
-    job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style="casual")
+    job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
     captured = {}
     monkeypatch.setattr(tryon_service, "ensure_container", lambda container: None)
@@ -130,9 +130,37 @@ def test_process_job_passes_the_cloth_type_matching_the_garment_category(
     assert captured["cloth_type"] == expected_cloth_type
 
 
+def test_process_job_matches_by_style_alone_ignoring_the_items_occasion_tag(db_session, monkeypatch):
+    _seed_taxonomy(db_session)
+    user = auth_service.create_user(db_session, name="Test", email="process-job-style-only@example.com", password="password123")
+    wardrobe_service.create_item(
+        db_session,
+        user.id,
+        WardrobeItemCreate(
+            blob_url="https://example.com/garment.png",
+            # Tagged for a party (occasion=du-tiec), not "hang-ngay" — a style-mode job must still
+            # match this on style alone, without also requiring occasion to line up.
+            attributes={"clothing-type": ["ao"], "style": ["formal"], "occasion": ["du-tiec"]},
+            dominant_colors=["#F2A93B"],
+        ),
+    )
+    job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion=None, style="formal")
+
+    monkeypatch.setattr(tryon_service, "ensure_container", lambda container: None)
+    monkeypatch.setattr(tryon_service, "download_bytes_from_url", lambda url: b"fake-image-bytes")
+    monkeypatch.setattr(tryon_service, "call_catvton_service", lambda person, garment, cloth_type: b"result-bytes")
+    monkeypatch.setattr(tryon_service, "upload_bytes", lambda container, path, data, content_type="image/png": "https://example.com/results/1.png")
+
+    tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
+
+    updated = db_session.get(TryOnJob, job.id)
+    assert updated.status == "done"
+    assert updated.wardrobe_item_id is not None
+
+
 def test_process_job_marks_failed_when_no_matching_item_exists(db_session):
     user = auth_service.create_user(db_session, name="Test", email="process-job-2@example.com", password="password123")
-    job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="du-tiec", style="formal")
+    job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="du-tiec", style=None)
 
     tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
 

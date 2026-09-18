@@ -15,8 +15,8 @@ class TryOnJob(Base):
         ForeignKey("wardrobe_items.id", ondelete="SET NULL"), nullable=True
     )
     catalog_model_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    occasion: Mapped[str] = mapped_column(String(100), nullable=False)
-    style: Mapped[str] = mapped_column(String(100), nullable=False)
+    occasion: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    style: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     result_front_blob_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     result_side_blob_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
