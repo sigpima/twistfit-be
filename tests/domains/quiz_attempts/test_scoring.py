@@ -74,6 +74,22 @@ def test_chroma_axis_full_tie_falls_back_to_muted_default():
     assert result["parent_season"] == "summer"
 
 
+def test_axis_scores_are_scaled_into_the_winning_sub_seasons_official_band():
+    # hue: cool 4/5 (share .8); value: light/dark tie -> "medium" fallback (share 0);
+    # chroma: bright 3/3 (share 1.0) -> parent_season=winter, sub_season=bright-winter
+    # (chroma-dominant slot). Official bands for bright-winter: hue (30,40),
+    # value (60,75), chroma (85,100).
+    result = score_quiz(
+        hue_votes=["cool", "cool", "warm", "cool", "cool"],
+        value_votes=["light", "dark"],
+        chroma_votes=["bright", "bright", "bright"],
+    )
+    assert result["sub_season"] == "bright-winter"
+    assert result["hue_score"] == 38  # 30 + .8 * (40-30)
+    assert result["value_score"] == 60  # 60 + 0 * (75-60)
+    assert result["chroma_score"] == 100  # 85 + 1.0 * (100-85)
+
+
 def test_value_dominant_sub_season():
     # value is unanimous (3/3 = 1.0 share); chroma landed on neutral (share 0)
     result = score_quiz(

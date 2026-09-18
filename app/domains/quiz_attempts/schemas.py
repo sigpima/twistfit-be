@@ -36,5 +36,8 @@ class QuizAttemptResponse(CamelModel):
     hue_result: str
     value_result: str
     chroma_result: str
+    hue_score: int | None
+    value_score: int | None
+    chroma_score: int | None
     user_id: int | None
     created_at: datetime

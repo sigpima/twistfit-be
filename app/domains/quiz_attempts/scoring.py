@@ -14,12 +14,37 @@ _SUB_SEASON_SLOTS_BY_PARENT = {
     "winter": {"value": "deep-winter", "hue": "true-winter", "chroma": "bright-winter"},
 }
 
+# Official per-sub-season score bands (0-100) on each axis's universal scale
+# (hue: cold->warm, value: dark->light, chroma: muted->vivid), from "Website
+# Content.docx". Each axis's exact score is the vote-share confidence for the
+# winning bucket, scaled into that band.
+_SUB_SEASON_AXIS_SCORE_RANGES: dict[str, dict[str, tuple[int, int]]] = {
+    "light-spring": {"hue": (55, 65), "value": (70, 90), "chroma": (60, 75)},
+    "true-spring": {"hue": (75, 95), "value": (60, 75), "chroma": (70, 85)},
+    "bright-spring": {"hue": (55, 65), "value": (65, 80), "chroma": (80, 100)},
+    "light-summer": {"hue": (35, 45), "value": (70, 90), "chroma": (35, 50)},
+    "true-summer": {"hue": (10, 25), "value": (55, 70), "chroma": (30, 45)},
+    "soft-summer": {"hue": (35, 45), "value": (45, 60), "chroma": (15, 35)},
+    "soft-autumn": {"hue": (55, 65), "value": (45, 60), "chroma": (15, 35)},
+    "true-autumn": {"hue": (75, 95), "value": (40, 55), "chroma": (40, 60)},
+    "deep-autumn": {"hue": (60, 70), "value": (15, 35), "chroma": (45, 60)},
+    "deep-winter": {"hue": (30, 40), "value": (15, 35), "chroma": (60, 75)},
+    "true-winter": {"hue": (5, 25), "value": (45, 65), "chroma": (75, 90)},
+    "bright-winter": {"hue": (30, 40), "value": (60, 75), "chroma": (85, 100)},
+}
+
 
 def _axis_result(votes: list[str], middle_value: str) -> str:
     counts = Counter(votes)
     max_count = max(counts.values())
     winners = [value for value, count in counts.items() if count == max_count]
     return winners[0] if len(winners) == 1 else middle_value
+
+
+def _axis_score(votes: list[str], axis_result: str, score_range: tuple[int, int]) -> int:
+    share = votes.count(axis_result) / len(votes)
+    low, high = score_range
+    return round(low + share * (high - low))
 
 
 def _hue_side(hue_result: str, hue_votes: list[str]) -> str:
@@ -63,6 +88,7 @@ def score_quiz(hue_votes: list[str], value_votes: list[str], chroma_votes: list[
 
     dominant_slot = _dominant_slot(value_result, chroma_result, value_votes, chroma_votes)
     sub_season = _SUB_SEASON_SLOTS_BY_PARENT[parent_season][dominant_slot]
+    score_ranges = _SUB_SEASON_AXIS_SCORE_RANGES[sub_season]
 
     return {
         "hue_result": hue_result,
@@ -70,4 +96,7 @@ def score_quiz(hue_votes: list[str], value_votes: list[str], chroma_votes: list[
         "chroma_result": chroma_result,
         "parent_season": parent_season,
         "sub_season": sub_season,
+        "hue_score": _axis_score(hue_votes, hue_result, score_ranges["hue"]),
+        "value_score": _axis_score(value_votes, value_result, score_ranges["value"]),
+        "chroma_score": _axis_score(chroma_votes, chroma_result, score_ranges["chroma"]),
     }

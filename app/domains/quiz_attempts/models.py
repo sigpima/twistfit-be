@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -15,6 +15,9 @@ class QuizAttempt(Base):
     hue_result: Mapped[str] = mapped_column(String(20), nullable=False)
     value_result: Mapped[str] = mapped_column(String(20), nullable=False)
     chroma_result: Mapped[str] = mapped_column(String(20), nullable=False)
+    hue_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    value_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chroma_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )

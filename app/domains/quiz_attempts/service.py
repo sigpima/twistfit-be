@@ -35,6 +35,9 @@ def create_quiz_attempt(db: Session, answers: list[QuizAnswerInput], user_id: in
         hue_result=result["hue_result"],
         value_result=result["value_result"],
         chroma_result=result["chroma_result"],
+        hue_score=result["hue_score"],
+        value_score=result["value_score"],
+        chroma_score=result["chroma_score"],
         user_id=user_id,
     )
     db.add(attempt)

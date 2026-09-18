@@ -65,6 +65,11 @@ def test_create_attempt_allows_anonymous_submission(client, db_session):
     assert body["parentSeason"] == "spring"
     assert body["subSeason"] == "light-spring"
     assert body["userId"] is None
+    # light-spring official bands: hue (55,65) share 1.0, value (70,90) share 1.0,
+    # chroma (60,75) with a bright/neutral tie -> "neutral" result, share .5
+    assert body["hueScore"] == 65
+    assert body["valueScore"] == 90
+    assert body["chromaScore"] == 68
 
 
 def test_create_attempt_attributes_to_the_logged_in_user(client, db_session):
