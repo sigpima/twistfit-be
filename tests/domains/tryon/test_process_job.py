@@ -33,19 +33,19 @@ def _create_item(db_session, user_id, category, style="casual", occasion="hang-n
     )
 
 
-def _stub_common(monkeypatch, catvton_fn):
+def _stub_common(monkeypatch, catvton_batch_fn):
     monkeypatch.setattr(tryon_service, "ensure_container", lambda container: None)
     monkeypatch.setattr(tryon_service, "download_bytes_from_url", lambda url: f"person-bytes:{url}".encode())
-    monkeypatch.setattr(tryon_service, "call_catvton_service", catvton_fn)
+    monkeypatch.setattr(tryon_service, "call_catvton_service_batch", catvton_batch_fn)
     monkeypatch.setattr(
         tryon_service, "upload_bytes", lambda container, path, data, content_type="image/png": f"https://example.com/{path}"
     )
 
 
-def _recording_catvton(calls: list[tuple[bytes, bytes, str]]):
-    def fake(person_bytes, garment_bytes, cloth_type):
-        calls.append((person_bytes, garment_bytes, cloth_type))
-        return f"result-after-call-{len(calls)}".encode()
+def _recording_catvton_batch(calls: list[tuple[list[bytes], bytes, str]]):
+    def fake(person_bytes_list, garment_bytes, cloth_type):
+        calls.append((person_bytes_list, garment_bytes, cloth_type))
+        return [f"result-after-call-{len(calls)}-{i}".encode() for i in range(len(person_bytes_list))]
 
     return fake
 
@@ -57,7 +57,7 @@ def test_process_job_completes_with_a_single_dress_item(db_session, monkeypatch)
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
     ensured_containers = []
-    _stub_common(monkeypatch, lambda person, garment, cloth_type: b"result-bytes")
+    _stub_common(monkeypatch, lambda persons, garment, cloth_type: [b"result-bytes"] * len(persons))
     monkeypatch.setattr(tryon_service, "ensure_container", ensured_containers.append)
 
     tryon_service.process_job(
@@ -82,7 +82,7 @@ def test_process_job_leaves_the_side_result_null_when_no_side_image_is_given(db_
     _create_item(db_session, user.id, "dam")
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
-    _stub_common(monkeypatch, lambda person, garment, cloth_type: b"result-bytes")
+    _stub_common(monkeypatch, lambda persons, garment, cloth_type: [b"result-bytes"] * len(persons))
 
     tryon_service.process_job(
         db_session, job.id, season="spring", front_image_url="https://example.com/model-front.png"
@@ -94,27 +94,38 @@ def test_process_job_leaves_the_side_result_null_when_no_side_image_is_given(db_
     assert updated.result_side_blob_url is None
 
 
-def test_process_job_chains_shirt_then_pants_in_order(db_session, monkeypatch):
+def test_process_job_chains_shirt_then_pants_batching_both_angles_per_step(db_session, monkeypatch):
     _seed_taxonomy(db_session)
     user = auth_service.create_user(db_session, name="Test", email="process-job-chain@example.com", password="password123")
     _create_item(db_session, user.id, "ao")
     _create_item(db_session, user.id, "quan")
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
-    calls: list[tuple[bytes, bytes, str]] = []
-    _stub_common(monkeypatch, _recording_catvton(calls))
+    calls: list[tuple[list[bytes], bytes, str]] = []
+    _stub_common(monkeypatch, _recording_catvton_batch(calls))
 
-    tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
+    tryon_service.process_job(
+        db_session,
+        job.id,
+        season="spring",
+        front_image_url="https://example.com/model-front.png",
+        side_image_url="https://example.com/model-side.png",
+    )
 
     updated = db_session.get(TryOnJob, job.id)
     assert updated.status == "done"
+    # One call per combo item, each batching both angles together — not one call per angle.
     assert len(calls) == 2
+    assert calls[0][0] == [
+        b"person-bytes:https://example.com/model-front.png",
+        b"person-bytes:https://example.com/model-side.png",
+    ]
     assert calls[0][1] == b"person-bytes:https://example.com/ao.png"  # shirt garment applied first
     assert calls[0][2] == "upper"
     assert calls[1][1] == b"person-bytes:https://example.com/quan.png"  # then pants
     assert calls[1][2] == "lower"
-    # The pants call's "person" input is the shirt call's output — a real chain, not two independent calls.
-    assert calls[1][0] == b"result-after-call-1"
+    # The pants call's "person" batch is the shirt call's output batch — a real chain.
+    assert calls[1][0] == [b"result-after-call-1-0", b"result-after-call-1-1"]
 
 
 def test_process_job_chains_jacket_last_over_a_dress(db_session, monkeypatch):
@@ -124,8 +135,8 @@ def test_process_job_chains_jacket_last_over_a_dress(db_session, monkeypatch):
     _create_item(db_session, user.id, "ao-khoac")
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
-    calls: list[tuple[bytes, bytes, str]] = []
-    _stub_common(monkeypatch, _recording_catvton(calls))
+    calls: list[tuple[list[bytes], bytes, str]] = []
+    _stub_common(monkeypatch, _recording_catvton_batch(calls))
 
     tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
 
@@ -145,8 +156,8 @@ def test_process_job_chains_jacket_last_over_shirt_and_pants(db_session, monkeyp
     _create_item(db_session, user.id, "ao-khoac")
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
-    calls: list[tuple[bytes, bytes, str]] = []
-    _stub_common(monkeypatch, _recording_catvton(calls))
+    calls: list[tuple[list[bytes], bytes, str]] = []
+    _stub_common(monkeypatch, _recording_catvton_batch(calls))
 
     tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
 
@@ -167,7 +178,7 @@ def test_process_job_records_every_item_used_in_the_combo_in_order(db_session, m
     pants = _create_item(db_session, user.id, "quan")
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
-    _stub_common(monkeypatch, lambda person, garment, cloth_type: b"result-bytes")
+    _stub_common(monkeypatch, lambda persons, garment, cloth_type: [b"result-bytes"] * len(persons))
 
     tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
 
@@ -189,7 +200,7 @@ def test_process_job_matches_by_style_alone_ignoring_the_items_occasion_tag(db_s
     _create_item(db_session, user.id, "dam", style="formal", occasion="du-tiec")
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion=None, style="formal")
 
-    _stub_common(monkeypatch, lambda person, garment, cloth_type: b"result-bytes")
+    _stub_common(monkeypatch, lambda persons, garment, cloth_type: [b"result-bytes"] * len(persons))
 
     tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
 

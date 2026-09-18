@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
 
 from app.core.blob_storage import download_bytes_from_url, ensure_container, upload_bytes
-from app.domains.tryon.catvton_client import call_catvton_service
+from app.domains.tryon.catvton_client import call_catvton_service_batch
 from app.domains.tryon.garment_selection import CLOTH_TYPE_BY_CATEGORY, select_outfit_combo
 from app.domains.tryon.models import TryOnJob, TryOnJobItem
 from app.domains.wardrobe.models import WardrobeItem
@@ -39,12 +39,14 @@ def _cloth_type_of(item: WardrobeItem) -> str:
     return CLOTH_TYPE_BY_CATEGORY.get(category, "upper")
 
 
-def _apply_combo(person_bytes: bytes, combo: list[WardrobeItem]) -> bytes:
-    current_bytes = person_bytes
+def _apply_combo_batch(person_bytes_list: list[bytes], combo: list[WardrobeItem]) -> list[bytes]:
+    """Apply every combo item to every angle, one combo step at a time —
+    each step batches all angles (e.g. front+side) into a single call."""
+    current_bytes_list = person_bytes_list
     for item in combo:
         garment_bytes = download_bytes_from_url(item.blob_url)
-        current_bytes = call_catvton_service(current_bytes, garment_bytes, _cloth_type_of(item))
-    return current_bytes
+        current_bytes_list = call_catvton_service_batch(current_bytes_list, garment_bytes, _cloth_type_of(item))
+    return current_bytes_list
 
 
 def process_job(db: Session, job_id: int, season: str, front_image_url: str, side_image_url: str | None = None) -> None:
@@ -80,14 +82,17 @@ def process_job(db: Session, job_id: int, season: str, front_image_url: str, sid
 
         ensure_container("results")
 
-        front_person_bytes = download_bytes_from_url(front_image_url)
-        front_result_bytes = _apply_combo(front_person_bytes, combo)
-        job.result_front_blob_url = upload_bytes("results", f"{job.user_id}/{job.id}-front.png", front_result_bytes)
-
+        person_bytes_list = [download_bytes_from_url(front_image_url)]
         if side_image_url:
-            side_person_bytes = download_bytes_from_url(side_image_url)
-            side_result_bytes = _apply_combo(side_person_bytes, combo)
-            job.result_side_blob_url = upload_bytes("results", f"{job.user_id}/{job.id}-side.png", side_result_bytes)
+            person_bytes_list.append(download_bytes_from_url(side_image_url))
+
+        result_bytes_list = _apply_combo_batch(person_bytes_list, combo)
+
+        job.result_front_blob_url = upload_bytes("results", f"{job.user_id}/{job.id}-front.png", result_bytes_list[0])
+        if side_image_url:
+            job.result_side_blob_url = upload_bytes(
+                "results", f"{job.user_id}/{job.id}-side.png", result_bytes_list[1]
+            )
 
         job.status = "done"
         db.commit()
