@@ -53,8 +53,8 @@ def suggest_tags_endpoint(
 
 @router.get("/recommendations", response_model=list[AccessoryRecommendationResponse])
 def get_recommendations(
-    occasion: str,
-    style: str,
+    occasion: str | None = None,
+    style: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):

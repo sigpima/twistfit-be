@@ -60,19 +60,19 @@ def delete_accessory(db: Session, accessory_id: int) -> bool:
     return True
 
 
-def _score(product: AccessoryProduct, occasion: str, style: str, tone: str | None) -> int:
+def _score(product: AccessoryProduct, occasion: str | None, style: str | None, tone: str | None) -> int:
     score = 0
-    if occasion in product.occasion_tags:
+    if occasion is not None and occasion in product.occasion_tags:
         score += 2
     if tone is not None and tone in product.tone_tags:
         score += 2
-    if style in product.style_tags:
+    if style is not None and style in product.style_tags:
         score += 1
     return score
 
 
 def _select_recommendations(
-    products: list[AccessoryProduct], occasion: str, style: str, tone: str | None, limit: int
+    products: list[AccessoryProduct], occasion: str | None, style: str | None, tone: str | None, limit: int
 ) -> list[AccessoryProduct]:
     best_by_category: dict[str, tuple[AccessoryProduct, int]] = {}
     for product in products:
@@ -103,6 +103,8 @@ def _select_recommendations(
     return [product for product, _matched_score in ranked][:limit]
 
 
-def recommend(db: Session, occasion: str, style: str, tone: str | None, limit: int = 6) -> list[AccessoryProduct]:
+def recommend(
+    db: Session, occasion: str | None, style: str | None, tone: str | None, limit: int = 6
+) -> list[AccessoryProduct]:
     products = db.query(AccessoryProduct).filter(AccessoryProduct.is_active.is_(True)).all()
     return _select_recommendations(products, occasion, style, tone, limit)

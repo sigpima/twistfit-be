@@ -65,6 +65,31 @@ def test_ignores_tone_scoring_when_tone_is_none():
     assert result == [product]
 
 
+def test_scores_by_style_alone_when_occasion_is_none():
+    # Tagged for a different occasion than the user ever chose — with
+    # occasion=None (style-only browsing mode) it must still score purely
+    # off the style match, the same way tryon job matching now works.
+    matching_style = _product("tui-xach", ["formal"], ["du-tiec"], [], datetime(2026, 1, 1, tzinfo=timezone.utc))
+    unrelated = _product("tui-xach", ["street"], ["hang-ngay"], [], datetime(2026, 1, 1, tzinfo=timezone.utc))
+
+    result = _select_recommendations(
+        [matching_style, unrelated], occasion=None, style="formal", tone=None, limit=6
+    )
+
+    assert result == [matching_style]
+
+
+def test_scores_by_occasion_alone_when_style_is_none():
+    matching_occasion = _product("giay", ["street"], ["du-tiec"], [], datetime(2026, 1, 1, tzinfo=timezone.utc))
+    unrelated = _product("giay", ["formal"], ["hang-ngay"], [], datetime(2026, 1, 1, tzinfo=timezone.utc))
+
+    result = _select_recommendations(
+        [matching_occasion, unrelated], occasion="du-tiec", style=None, tone=None, limit=6
+    )
+
+    assert result == [matching_occasion]
+
+
 def test_respects_the_limit_across_categories():
     bag = _product("tui-xach", ["casual"], ["hang-ngay"], [], datetime(2026, 1, 1, tzinfo=timezone.utc))
     shoes = _product("giay", ["casual"], ["hang-ngay"], [], datetime(2026, 1, 1, tzinfo=timezone.utc))
