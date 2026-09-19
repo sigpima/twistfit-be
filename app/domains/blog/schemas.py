@@ -13,6 +13,7 @@ class BlogPostInput(CamelModel):
     excerpt: str
     content: str
     cover_image_url: str
+    cover_image_alt: str | None = None
     category: str
     author_name: str | None = None
     is_featured: bool = False
@@ -32,9 +33,9 @@ class BlogPostInput(CamelModel):
             raise ValueError("Chuyên mục không hợp lệ")
         return value
 
-    @field_validator("author_name")
+    @field_validator("author_name", "cover_image_alt")
     @classmethod
-    def normalize_author_name(cls, value: str | None) -> str | None:
+    def normalize_optional_text(cls, value: str | None) -> str | None:
         if value is None:
             return None
         stripped = value.strip()
@@ -53,6 +54,7 @@ class BlogPostResponse(CamelModel):
     excerpt: str
     content: str
     cover_image_url: str
+    cover_image_alt: str | None
     category: str
     author_name: str | None
     is_featured: bool

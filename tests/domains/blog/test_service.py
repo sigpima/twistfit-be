@@ -28,6 +28,28 @@ def test_create_blog_post_generates_slug_from_title_when_blank(db_session):
     assert post.slug == "bai-test"
 
 
+def test_create_blog_post_stores_the_cover_image_alt_text(db_session):
+    post = service.create_blog_post(
+        db_session, BlogPostInput(**{**VALID_INPUT, "coverImageAlt": "  Mô tả ảnh bìa  "})
+    )
+    assert post.cover_image_alt == "Mô tả ảnh bìa"
+
+
+def test_create_blog_post_leaves_the_cover_image_alt_null_when_not_given(db_session):
+    post = service.create_blog_post(db_session, BlogPostInput(**VALID_INPUT))
+    assert post.cover_image_alt is None
+
+
+def test_update_blog_post_changes_the_cover_image_alt_text(db_session):
+    post = service.create_blog_post(
+        db_session, BlogPostInput(**{**VALID_INPUT, "slug": "alt-update", "coverImageAlt": "Cũ"})
+    )
+    updated = service.update_blog_post(
+        db_session, post.id, BlogPostInput(**{**VALID_INPUT, "slug": "alt-update", "coverImageAlt": "Mới"})
+    )
+    assert updated.cover_image_alt == "Mới"
+
+
 def test_create_blog_post_uses_provided_slug(db_session):
     post = service.create_blog_post(db_session, BlogPostInput(**{**VALID_INPUT, "slug": "custom-slug"}))
     assert post.slug == "custom-slug"
