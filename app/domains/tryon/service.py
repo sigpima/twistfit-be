@@ -4,10 +4,18 @@ from sqlalchemy.orm import Session
 
 from app.core.blob_storage import download_bytes_from_url, ensure_container, upload_bytes
 from app.core.config import settings
-from app.domains.tryon.catvton_client import call_catvton_service_batch
-from app.domains.tryon.garment_selection import CLOTH_TYPE_BY_CATEGORY, select_outfit_combo
+from app.domains.tryon.flux_vto_client import call_flux_vto, merge_garments_into_canvas
+from app.domains.tryon.garment_selection import select_outfit_combo
 from app.domains.tryon.models import TryOnJob, TryOnJobItem
 from app.domains.wardrobe.models import WardrobeItem
+
+_GARMENT_DESCRIPTION_BY_CATEGORY = {
+    "ao": "shirt",
+    "ao-khoac": "jacket",
+    "quan": "pants",
+    "vay": "skirt",
+    "dam": "dress",
+}
 
 
 def create_job(
@@ -34,27 +42,39 @@ def list_jobs(db: Session, user_id: int) -> list[TryOnJob]:
     return db.query(TryOnJob).filter(TryOnJob.user_id == user_id).order_by(TryOnJob.created_at.desc()).all()
 
 
-def _cloth_type_of(item: WardrobeItem) -> str:
+def _garment_description(item: WardrobeItem) -> str:
     clothing_types = item.attributes.get("clothing-type", [])
     category = clothing_types[0] if clothing_types else None
-    return CLOTH_TYPE_BY_CATEGORY.get(category, "upper")
+    return _GARMENT_DESCRIPTION_BY_CATEGORY.get(category, "garment")
 
 
-def _apply_combo_batch(person_bytes_list: list[bytes], combo: list[WardrobeItem]) -> list[bytes]:
-    """Apply every combo item to every angle, one combo step at a time —
-    each step batches all angles (e.g. front+side) into a single call."""
-    current_bytes_list = person_bytes_list
-    for item in combo:
-        garment_bytes = download_bytes_from_url(item.blob_url)
-        current_bytes_list = call_catvton_service_batch(current_bytes_list, garment_bytes, _cloth_type_of(item))
-    return current_bytes_list
+def _build_vto_prompt(combo: list[WardrobeItem]) -> str:
+    descriptions = [_garment_description(item) for item in combo]
+    if len(descriptions) == 1:
+        joined = descriptions[0]
+    else:
+        joined = ", ".join(descriptions[:-1]) + f" and {descriptions[-1]}"
+    return (
+        "The person of image 1, maintaining exactly their face and pose, "
+        f"wearing the {joined} of image 2."
+    )
+
+
+def _apply_combo_via_flux_vto(person_bytes_list: list[bytes], combo: list[WardrobeItem]) -> list[bytes]:
+    """Merge every combo item into one garment reference (FLUX VTO's
+    documented approach for multi-garment try-on) and apply it to each
+    angle (front/side) in one FLUX VTO call per angle."""
+    garment_bytes_list = [download_bytes_from_url(item.blob_url) for item in combo]
+    garment_reference = garment_bytes_list[0] if len(garment_bytes_list) == 1 else merge_garments_into_canvas(garment_bytes_list)
+    prompt = _build_vto_prompt(combo)
+    return [call_flux_vto(person_bytes, garment_reference, prompt=prompt) for person_bytes in person_bytes_list]
 
 
 def process_job(db: Session, job_id: int, season: str, front_image_url: str, side_image_url: str | None = None) -> None:
     print(
         f"[TRYON-DEBUG] process_job start job_id={job_id} season={season} "
         f"front_image_url={front_image_url} side_image_url={side_image_url} "
-        f"catvton_service_url={settings.catvton_service_url}",
+        f"flux_api_base_url={settings.flux_api_base_url}",
         flush=True,
     )
     job = db.get(TryOnJob, job_id)
@@ -89,7 +109,7 @@ def process_job(db: Session, job_id: int, season: str, front_image_url: str, sid
         db.commit()
         print(
             f"[TRYON-DEBUG] process_job job_id={job_id} combo selected: "
-            f"{[(item.id, _cloth_type_of(item)) for item in combo]}",
+            f"{[(item.id, _garment_description(item)) for item in combo]}",
             flush=True,
         )
 
@@ -104,8 +124,8 @@ def process_job(db: Session, job_id: int, season: str, front_image_url: str, sid
             flush=True,
         )
 
-        result_bytes_list = _apply_combo_batch(person_bytes_list, combo)
-        print(f"[TRYON-DEBUG] process_job job_id={job_id} _apply_combo_batch done", flush=True)
+        result_bytes_list = _apply_combo_via_flux_vto(person_bytes_list, combo)
+        print(f"[TRYON-DEBUG] process_job job_id={job_id} _apply_combo_via_flux_vto done", flush=True)
 
         job.result_front_blob_url = upload_bytes("results", f"{job.user_id}/{job.id}-front.png", result_bytes_list[0])
         if side_image_url:

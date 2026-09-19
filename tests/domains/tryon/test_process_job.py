@@ -33,19 +33,19 @@ def _create_item(db_session, user_id, category, style="casual", occasion="hang-n
     )
 
 
-def _stub_common(monkeypatch, catvton_batch_fn):
+def _stub_common(monkeypatch, flux_vto_fn):
     monkeypatch.setattr(tryon_service, "ensure_container", lambda container: None)
     monkeypatch.setattr(tryon_service, "download_bytes_from_url", lambda url: f"person-bytes:{url}".encode())
-    monkeypatch.setattr(tryon_service, "call_catvton_service_batch", catvton_batch_fn)
+    monkeypatch.setattr(tryon_service, "call_flux_vto", flux_vto_fn)
     monkeypatch.setattr(
         tryon_service, "upload_bytes", lambda container, path, data, content_type="image/png": f"https://example.com/{path}"
     )
 
 
-def _recording_catvton_batch(calls: list[tuple[list[bytes], bytes, str]]):
-    def fake(person_bytes_list, garment_bytes, cloth_type):
-        calls.append((person_bytes_list, garment_bytes, cloth_type))
-        return [f"result-after-call-{len(calls)}-{i}".encode() for i in range(len(person_bytes_list))]
+def _recording_flux_vto(calls: list[tuple[bytes, bytes, str]]):
+    def fake(person_bytes, garment_bytes, prompt=""):
+        calls.append((person_bytes, garment_bytes, prompt))
+        return f"result-for-call-{len(calls)}".encode()
 
     return fake
 
@@ -57,7 +57,7 @@ def test_process_job_completes_with_a_single_dress_item(db_session, monkeypatch)
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
     ensured_containers = []
-    _stub_common(monkeypatch, lambda persons, garment, cloth_type: [b"result-bytes"] * len(persons))
+    _stub_common(monkeypatch, lambda person, garment, prompt="": b"result-bytes")
     monkeypatch.setattr(tryon_service, "ensure_container", ensured_containers.append)
 
     tryon_service.process_job(
@@ -82,7 +82,7 @@ def test_process_job_leaves_the_side_result_null_when_no_side_image_is_given(db_
     _create_item(db_session, user.id, "dam")
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
-    _stub_common(monkeypatch, lambda persons, garment, cloth_type: [b"result-bytes"] * len(persons))
+    _stub_common(monkeypatch, lambda person, garment, prompt="": b"result-bytes")
 
     tryon_service.process_job(
         db_session, job.id, season="spring", front_image_url="https://example.com/model-front.png"
@@ -94,15 +94,21 @@ def test_process_job_leaves_the_side_result_null_when_no_side_image_is_given(db_
     assert updated.result_side_blob_url is None
 
 
-def test_process_job_chains_shirt_then_pants_batching_both_angles_per_step(db_session, monkeypatch):
+def test_process_job_calls_flux_vto_once_per_angle_with_the_merged_garment_reference(db_session, monkeypatch):
     _seed_taxonomy(db_session)
     user = auth_service.create_user(db_session, name="Test", email="process-job-chain@example.com", password="password123")
     _create_item(db_session, user.id, "ao")
     _create_item(db_session, user.id, "quan")
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
-    calls: list[tuple[list[bytes], bytes, str]] = []
-    _stub_common(monkeypatch, _recording_catvton_batch(calls))
+    calls: list[tuple[bytes, bytes, str]] = []
+    merge_calls = []
+    _stub_common(monkeypatch, _recording_flux_vto(calls))
+    monkeypatch.setattr(
+        tryon_service,
+        "merge_garments_into_canvas",
+        lambda garment_bytes_list: merge_calls.append(garment_bytes_list) or b"merged-canvas",
+    )
 
     tryon_service.process_job(
         db_session,
@@ -114,41 +120,48 @@ def test_process_job_chains_shirt_then_pants_batching_both_angles_per_step(db_se
 
     updated = db_session.get(TryOnJob, job.id)
     assert updated.status == "done"
-    # One call per combo item, each batching both angles together — not one call per angle.
+    # One FLUX VTO call per angle (front, side), not one per garment.
     assert len(calls) == 2
-    assert calls[0][0] == [
-        b"person-bytes:https://example.com/model-front.png",
-        b"person-bytes:https://example.com/model-side.png",
+    assert calls[0][0] == b"person-bytes:https://example.com/model-front.png"
+    assert calls[1][0] == b"person-bytes:https://example.com/model-side.png"
+    # Both angles use the same merged garment reference and prompt.
+    assert calls[0][1] == b"merged-canvas"
+    assert calls[1][1] == b"merged-canvas"
+    assert calls[0][2] == calls[1][2] == (
+        "The person of image 1, maintaining exactly their face and pose, "
+        "wearing the shirt and pants of image 2."
+    )
+    # Garments were merged in combo order: shirt first, then pants.
+    assert merge_calls == [
+        [b"person-bytes:https://example.com/ao.png", b"person-bytes:https://example.com/quan.png"]
     ]
-    assert calls[0][1] == b"person-bytes:https://example.com/ao.png"  # shirt garment applied first
-    assert calls[0][2] == "upper"
-    assert calls[1][1] == b"person-bytes:https://example.com/quan.png"  # then pants
-    assert calls[1][2] == "lower"
-    # The pants call's "person" batch is the shirt call's output batch — a real chain.
-    assert calls[1][0] == [b"result-after-call-1-0", b"result-after-call-1-1"]
 
 
-def test_process_job_chains_jacket_last_over_a_dress(db_session, monkeypatch):
+def test_process_job_uses_the_single_garment_directly_without_merging(db_session, monkeypatch):
     _seed_taxonomy(db_session)
-    user = auth_service.create_user(db_session, name="Test", email="process-job-jacket-dress@example.com", password="password123")
+    user = auth_service.create_user(db_session, name="Test", email="process-job-single@example.com", password="password123")
     _create_item(db_session, user.id, "dam")
-    _create_item(db_session, user.id, "ao-khoac")
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
-    calls: list[tuple[list[bytes], bytes, str]] = []
-    _stub_common(monkeypatch, _recording_catvton_batch(calls))
+    calls: list[tuple[bytes, bytes, str]] = []
+
+    def _fail_if_called(garment_bytes_list):
+        raise AssertionError("merge_garments_into_canvas should not be called for a single-item combo")
+
+    _stub_common(monkeypatch, _recording_flux_vto(calls))
+    monkeypatch.setattr(tryon_service, "merge_garments_into_canvas", _fail_if_called)
 
     tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
 
     assert db_session.get(TryOnJob, job.id).status == "done"
-    assert len(calls) == 2
+    assert len(calls) == 1
     assert calls[0][1] == b"person-bytes:https://example.com/dam.png"
-    assert calls[0][2] == "overall"
-    assert calls[1][1] == b"person-bytes:https://example.com/ao-khoac.png"
-    assert calls[1][2] == "upper"
+    assert calls[0][2] == (
+        "The person of image 1, maintaining exactly their face and pose, wearing the dress of image 2."
+    )
 
 
-def test_process_job_chains_jacket_last_over_shirt_and_pants(db_session, monkeypatch):
+def test_process_job_builds_a_prompt_listing_every_garment_jacket_last(db_session, monkeypatch):
     _seed_taxonomy(db_session)
     user = auth_service.create_user(db_session, name="Test", email="process-job-jacket-full@example.com", password="password123")
     _create_item(db_session, user.id, "ao")
@@ -156,19 +169,18 @@ def test_process_job_chains_jacket_last_over_shirt_and_pants(db_session, monkeyp
     _create_item(db_session, user.id, "ao-khoac")
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
-    calls: list[tuple[list[bytes], bytes, str]] = []
-    _stub_common(monkeypatch, _recording_catvton_batch(calls))
+    calls: list[tuple[bytes, bytes, str]] = []
+    _stub_common(monkeypatch, _recording_flux_vto(calls))
+    monkeypatch.setattr(tryon_service, "merge_garments_into_canvas", lambda garment_bytes_list: b"merged-canvas")
 
     tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
 
     assert db_session.get(TryOnJob, job.id).status == "done"
-    assert len(calls) == 3
-    assert [call[1] for call in calls] == [
-        b"person-bytes:https://example.com/ao.png",
-        b"person-bytes:https://example.com/quan.png",
-        b"person-bytes:https://example.com/ao-khoac.png",
-    ]
-    assert [call[2] for call in calls] == ["upper", "lower", "upper"]
+    assert len(calls) == 1
+    assert calls[0][2] == (
+        "The person of image 1, maintaining exactly their face and pose, "
+        "wearing the shirt, pants and jacket of image 2."
+    )
 
 
 def test_process_job_records_every_item_used_in_the_combo_in_order(db_session, monkeypatch):
@@ -178,7 +190,8 @@ def test_process_job_records_every_item_used_in_the_combo_in_order(db_session, m
     pants = _create_item(db_session, user.id, "quan")
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
 
-    _stub_common(monkeypatch, lambda persons, garment, cloth_type: [b"result-bytes"] * len(persons))
+    _stub_common(monkeypatch, lambda person, garment, prompt="": b"result-bytes")
+    monkeypatch.setattr(tryon_service, "merge_garments_into_canvas", lambda garment_bytes_list: b"merged-canvas")
 
     tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
 
@@ -200,7 +213,7 @@ def test_process_job_matches_by_style_alone_ignoring_the_items_occasion_tag(db_s
     _create_item(db_session, user.id, "dam", style="formal", occasion="du-tiec")
     job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion=None, style="formal")
 
-    _stub_common(monkeypatch, lambda persons, garment, cloth_type: [b"result-bytes"] * len(persons))
+    _stub_common(monkeypatch, lambda person, garment, prompt="": b"result-bytes")
 
     tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
 

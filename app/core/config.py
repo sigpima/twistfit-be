@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     gemini_api_key: str = "dev-only-placeholder-gemini-key"
     catvton_service_url: str = "http://localhost:8001"
     catvton_api_key: str = "dev-only-placeholder-catvton-key"
+    flux_api_base_url: str = "https://api.bfl.ai"
+    flux_api_key: str = "dev-only-placeholder-flux-api-key"
     frontend_base_url: str = "http://localhost:3000"
     azure_storage_connection_string: str = (
         "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;"
