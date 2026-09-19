@@ -46,6 +46,11 @@ def create_tryon_job(
     job = service.create_job(db, user.id, body.catalog_model_id, body.occasion, body.style)
     front_image_url = _resolve_asset_url(catalog_model.image)
     side_image_url = _resolve_asset_url(catalog_model.side_image) if catalog_model.side_image else None
+    print(
+        f"[TRYON-DEBUG] POST /tryon created job_id={job.id} user_id={user.id} season={season} "
+        f"front_image_url={front_image_url} side_image_url={side_image_url}",
+        flush=True,
+    )
     background_tasks.add_task(_process_job_with_fresh_session, job.id, season, front_image_url, side_image_url)
     return job
 
@@ -60,4 +65,8 @@ def get_tryon_job(job_id: int, db: Session = Depends(get_db), user: User = Depen
     job = service.get_job(db, user.id, job_id)
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy job")
+    print(
+        f"[TRYON-DEBUG] GET /tryon/{job_id} status={job.status} error_message={job.error_message!r}",
+        flush=True,
+    )
     return job

@@ -3,6 +3,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
 
 from app.core.blob_storage import download_bytes_from_url, ensure_container, upload_bytes
+from app.core.config import settings
 from app.domains.tryon.catvton_client import call_catvton_service_batch
 from app.domains.tryon.garment_selection import CLOTH_TYPE_BY_CATEGORY, select_outfit_combo
 from app.domains.tryon.models import TryOnJob, TryOnJobItem
@@ -50,8 +51,15 @@ def _apply_combo_batch(person_bytes_list: list[bytes], combo: list[WardrobeItem]
 
 
 def process_job(db: Session, job_id: int, season: str, front_image_url: str, side_image_url: str | None = None) -> None:
+    print(
+        f"[TRYON-DEBUG] process_job start job_id={job_id} season={season} "
+        f"front_image_url={front_image_url} side_image_url={side_image_url} "
+        f"catvton_service_url={settings.catvton_service_url}",
+        flush=True,
+    )
     job = db.get(TryOnJob, job_id)
     if job is None:
+        print(f"[TRYON-DEBUG] process_job job_id={job_id} not found in DB, aborting", flush=True)
         return
 
     job.status = "processing"
@@ -79,14 +87,25 @@ def process_job(db: Session, job_id: int, season: str, front_image_url: str, sid
         for index, item in enumerate(combo):
             db.add(TryOnJobItem(tryon_job_id=job.id, wardrobe_item_id=item.id, sort_order=index))
         db.commit()
+        print(
+            f"[TRYON-DEBUG] process_job job_id={job_id} combo selected: "
+            f"{[(item.id, _cloth_type_of(item)) for item in combo]}",
+            flush=True,
+        )
 
         ensure_container("results")
 
         person_bytes_list = [download_bytes_from_url(front_image_url)]
         if side_image_url:
             person_bytes_list.append(download_bytes_from_url(side_image_url))
+        print(
+            f"[TRYON-DEBUG] process_job job_id={job_id} downloaded person images: "
+            f"{[len(b) for b in person_bytes_list]} bytes",
+            flush=True,
+        )
 
         result_bytes_list = _apply_combo_batch(person_bytes_list, combo)
+        print(f"[TRYON-DEBUG] process_job job_id={job_id} _apply_combo_batch done", flush=True)
 
         job.result_front_blob_url = upload_bytes("results", f"{job.user_id}/{job.id}-front.png", result_bytes_list[0])
         if side_image_url:
@@ -96,7 +115,12 @@ def process_job(db: Session, job_id: int, season: str, front_image_url: str, sid
 
         job.status = "done"
         db.commit()
+        print(f"[TRYON-DEBUG] process_job job_id={job_id} DONE", flush=True)
     except Exception as error:  # noqa: BLE001 — any failure here must land the job in `failed`, not crash the background task
+        print(
+            f"[TRYON-DEBUG] process_job job_id={job_id} EXCEPTION error_type={type(error).__name__} error={error!r}",
+            flush=True,
+        )
         job.status = "failed"
         job.error_message = str(error)
         db.commit()
