@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -52,7 +53,33 @@ def download_bytes(container: str, blob_path: str) -> bytes:
     return blob_client.download_blob().readall()
 
 
+_BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+
 def download_bytes_from_url(url: str) -> bytes:
-    response = httpx.get(url, timeout=30.0)
+    # twistfit.org sits behind a WAF/CDN that resets connections from httpx's
+    # default "python-httpx/..." User-Agent without sending a response
+    # (surfaces as httpx.RemoteProtocolError). A browser-like UA passes.
+    print(f"[TRYON-DEBUG] download_bytes_from_url start url={url}", flush=True)
+    started = time.monotonic()
+    try:
+        response = httpx.get(url, timeout=30.0, headers={"User-Agent": _BROWSER_USER_AGENT})
+    except Exception as error:
+        elapsed = time.monotonic() - started
+        print(
+            f"[TRYON-DEBUG] download_bytes_from_url FAILED url={url} elapsed={elapsed:.3f}s "
+            f"error_type={type(error).__name__} error={error!r}",
+            flush=True,
+        )
+        raise
+    elapsed = time.monotonic() - started
+    print(
+        f"[TRYON-DEBUG] download_bytes_from_url response url={url} elapsed={elapsed:.3f}s "
+        f"status={response.status_code} content_length={len(response.content)}",
+        flush=True,
+    )
     response.raise_for_status()
     return response.content
