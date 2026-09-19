@@ -67,7 +67,7 @@ def call_catvton_service_batch(
             headers={"X-API-Key": settings.catvton_api_key},
             files=files,
             data={"cloth_type": cloth_type},
-            timeout=90.0,
+            timeout=180.0,
         )
     except Exception as error:
         elapsed = time.monotonic() - started
