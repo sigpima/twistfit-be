@@ -9,7 +9,7 @@ from app.domains.accessories.schemas import ACCESSORY_CATEGORIES
 from app.domains.quiz_attempts.schemas import PARENT_SEASONS
 from app.domains.taxonomy import service as taxonomy_service
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
 
 
 def _build_prompt(style_tags: list[str], occasion_tags: list[str]) -> str:

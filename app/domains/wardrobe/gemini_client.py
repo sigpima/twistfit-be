@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.domains.taxonomy import service as taxonomy_service
 from app.domains.taxonomy.models import TaxonomyGroup
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
 
 
 def _build_prompt(groups: list[TaxonomyGroup]) -> str:
