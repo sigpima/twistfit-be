@@ -1,12 +1,15 @@
-from sqlalchemy import cast
+from datetime import date, datetime, timedelta, timezone
+
+from sqlalchemy import cast, update
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.core.blob_storage import download_bytes_from_url, ensure_container, upload_bytes
 from app.core.config import settings
 from app.domains.tryon.flux_vto_client import call_flux_vto, merge_garments_into_canvas
 from app.domains.tryon.garment_selection import select_outfit_combo
-from app.domains.tryon.models import TryOnJob, TryOnJobItem
+from app.domains.tryon.models import TryOnDailyQuota, TryOnJob, TryOnJobItem
 from app.domains.wardrobe.models import WardrobeItem
 
 _GARMENT_DESCRIPTION_BY_CATEGORY = {
@@ -16,6 +19,64 @@ _GARMENT_DESCRIPTION_BY_CATEGORY = {
     "vay": "skirt",
     "dam": "dress",
 }
+
+DAILY_TRYON_LIMIT = 5
+_VN_OFFSET = timedelta(hours=7)
+
+
+def _vn_today() -> date:
+    return (datetime.now(timezone.utc) + _VN_OFFSET).date()
+
+
+def reserve_tryon_quota(db: Session, user_id: int, limit: int = DAILY_TRYON_LIMIT) -> bool:
+    """Atomically reserve 1 of today's `limit` FLUX-VTO-billed attempts for
+    this user. Race-safe under concurrent requests: Postgres resolves the
+    ON CONFLICT branch under a row lock, so two simultaneous callers can
+    never both push `used_count` past `limit`. Returns False (no row
+    changed) once the limit is already reached.
+    """
+    quota_date = _vn_today()
+    stmt = (
+        pg_insert(TryOnDailyQuota)
+        .values(user_id=user_id, quota_date=quota_date, used_count=1)
+        .on_conflict_do_update(
+            index_elements=["user_id", "quota_date"],
+            set_={"used_count": TryOnDailyQuota.used_count + 1},
+            where=TryOnDailyQuota.used_count < limit,
+        )
+        .returning(TryOnDailyQuota.used_count)
+    )
+    reserved = db.execute(stmt).first() is not None
+    db.commit()
+    return reserved
+
+
+def release_tryon_quota(db: Session, user_id: int) -> None:
+    """Refund 1 reserved attempt — call only when a job fails before it
+    actually reached the paid FLUX VTO call."""
+    quota_date = _vn_today()
+    db.execute(
+        update(TryOnDailyQuota)
+        .where(
+            TryOnDailyQuota.user_id == user_id,
+            TryOnDailyQuota.quota_date == quota_date,
+            TryOnDailyQuota.used_count > 0,
+        )
+        .values(used_count=TryOnDailyQuota.used_count - 1)
+    )
+    db.commit()
+
+
+def get_tryon_quota(db: Session, user_id: int, limit: int = DAILY_TRYON_LIMIT) -> tuple[int, int]:
+    """Returns (used_today, remaining_today) for the caller's Vietnam-calendar day."""
+    quota_date = _vn_today()
+    row = (
+        db.query(TryOnDailyQuota)
+        .filter(TryOnDailyQuota.user_id == user_id, TryOnDailyQuota.quota_date == quota_date)
+        .first()
+    )
+    used = row.used_count if row else 0
+    return used, max(limit - used, 0)
 
 
 def create_job(
@@ -85,6 +146,7 @@ def process_job(db: Session, job_id: int, season: str, front_image_url: str, sid
     job.status = "processing"
     db.commit()
 
+    reached_flux = False
     try:
         tag_attribute = "occasion" if job.occasion is not None else "style"
         tag_value = job.occasion if job.occasion is not None else job.style
@@ -124,6 +186,7 @@ def process_job(db: Session, job_id: int, season: str, front_image_url: str, sid
             flush=True,
         )
 
+        reached_flux = True
         result_bytes_list = _apply_combo_via_flux_vto(person_bytes_list, combo)
         print(f"[TRYON-DEBUG] process_job job_id={job_id} _apply_combo_via_flux_vto done", flush=True)
 
@@ -144,3 +207,7 @@ def process_job(db: Session, job_id: int, season: str, front_image_url: str, sid
         job.status = "failed"
         job.error_message = str(error)
         db.commit()
+        if not reached_flux:
+            # Failed before the paid FLUX VTO call was ever attempted (e.g. no
+            # matching wardrobe items) — refund the reserved daily attempt.
+            release_tryon_quota(db, job.user_id)

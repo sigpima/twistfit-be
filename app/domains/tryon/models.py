@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -48,3 +48,19 @@ class TryOnJobItem(Base):
         ForeignKey("wardrobe_items.id", ondelete="CASCADE"), nullable=False
     )
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class TryOnDailyQuota(Base):
+    """Tracks how many FLUX VTO-billed attempts a user has used on a given
+    (Vietnam-calendar) day. A row is reserved atomically before a job is
+    allowed to reach the paid FLUX VTO call, and refunded if the job fails
+    before actually reaching it — see service.reserve_tryon_quota /
+    release_tryon_quota."""
+
+    __tablename__ = "tryon_daily_quota"
+    __table_args__ = (UniqueConstraint("user_id", "quota_date", name="uq_tryon_daily_quota_user_date"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    quota_date: Mapped[date] = mapped_column(Date, nullable=False)
+    used_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

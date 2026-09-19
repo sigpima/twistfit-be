@@ -17,6 +17,12 @@ class TryOnJobCreate(CamelModel):
         return self
 
 
+class TryOnQuotaResponse(CamelModel):
+    used_today: int
+    limit: int
+    remaining_today: int
+
+
 class TryOnJobResponse(CamelModel):
     id: int
     user_id: int

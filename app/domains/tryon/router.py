@@ -8,7 +8,7 @@ from app.domains.auth.models import User
 from app.domains.model_catalog.models import CatalogModel
 from app.domains.quiz_attempts.models import QuizAttempt
 from app.domains.tryon import service
-from app.domains.tryon.schemas import TryOnJobCreate, TryOnJobResponse
+from app.domains.tryon.schemas import TryOnJobCreate, TryOnJobResponse, TryOnQuotaResponse
 
 router = APIRouter(prefix="/tryon", tags=["tryon"])
 
@@ -38,6 +38,12 @@ def create_tryon_job(
     if catalog_model is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy model")
 
+    if not service.reserve_tryon_quota(db, user.id):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Bạn đã dùng hết {service.DAILY_TRYON_LIMIT} lượt thử hôm nay, quay lại vào ngày mai nhé.",
+        )
+
     latest_attempt = (
         db.query(QuizAttempt).filter(QuizAttempt.user_id == user.id).order_by(QuizAttempt.id.desc()).first()
     )
@@ -58,6 +64,12 @@ def create_tryon_job(
 @router.get("", response_model=list[TryOnJobResponse])
 def list_tryon_jobs(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return service.list_jobs(db, user.id)
+
+
+@router.get("/quota", response_model=TryOnQuotaResponse)
+def get_tryon_quota(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    used_today, remaining_today = service.get_tryon_quota(db, user.id)
+    return TryOnQuotaResponse(used_today=used_today, limit=service.DAILY_TRYON_LIMIT, remaining_today=remaining_today)
 
 
 @router.get("/{job_id}", response_model=TryOnJobResponse)

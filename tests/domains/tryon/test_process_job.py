@@ -257,3 +257,36 @@ def test_process_job_fails_with_a_not_enough_items_message_when_only_a_jacket_ma
     updated = db_session.get(TryOnJob, job.id)
     assert updated.status == "failed"
     assert updated.error_message == "Tủ đồ chưa đủ trang phục để ghép thành 1 bộ hoàn chỉnh cho dịp/phong cách này"
+
+
+def test_process_job_refunds_the_quota_when_it_fails_before_reaching_flux_vto(db_session):
+    user = auth_service.create_user(db_session, name="Test", email="process-job-refund@example.com", password="password123")
+    tryon_service.reserve_tryon_quota(db_session, user.id)
+    job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="du-tiec", style=None)
+
+    tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
+
+    updated = db_session.get(TryOnJob, job.id)
+    assert updated.status == "failed"
+    used, remaining = tryon_service.get_tryon_quota(db_session, user.id)
+    assert used == 0
+    assert remaining == tryon_service.DAILY_TRYON_LIMIT
+
+
+def test_process_job_does_not_refund_the_quota_when_flux_vto_itself_fails(db_session, monkeypatch):
+    _seed_taxonomy(db_session)
+    user = auth_service.create_user(db_session, name="Test", email="process-job-no-refund@example.com", password="password123")
+    _create_item(db_session, user.id, "dam")
+    tryon_service.reserve_tryon_quota(db_session, user.id)
+    job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
+
+    _stub_common(monkeypatch, lambda person, garment, prompt="": (_ for _ in ()).throw(RuntimeError("FLUX VTO lỗi")))
+
+    tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
+
+    updated = db_session.get(TryOnJob, job.id)
+    assert updated.status == "failed"
+    assert updated.error_message == "FLUX VTO lỗi"
+    used, remaining = tryon_service.get_tryon_quota(db_session, user.id)
+    assert used == 1
+    assert remaining == tryon_service.DAILY_TRYON_LIMIT - 1

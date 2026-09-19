@@ -203,6 +203,56 @@ def test_create_job_resolves_a_relative_catalog_model_image_to_an_absolute_url(c
     assert captured["url"] == "http://localhost:3000/outfit/models/test.jpg"
 
 
+def test_create_job_returns_429_once_the_daily_quota_is_exhausted(client, db_session, monkeypatch):
+    monkeypatch.setattr(tryon_service, "process_job", lambda *args, **kwargs: None)
+
+    _login(client, "tryon-quota-limit@example.com")
+    model = _seed_catalog_model(db_session)
+
+    for _ in range(5):
+        response = client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay"})
+        assert response.status_code == 201
+
+    sixth_response = client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay"})
+    assert sixth_response.status_code == 429
+
+
+def test_create_job_quota_is_scoped_per_user(client, db_session, monkeypatch):
+    monkeypatch.setattr(tryon_service, "process_job", lambda *args, **kwargs: None)
+    model = _seed_catalog_model(db_session)
+
+    _login(client, "tryon-quota-user-a@example.com")
+    for _ in range(5):
+        assert client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay"}).status_code == 201
+    assert client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay"}).status_code == 429
+
+    client.post("/auth/logout")
+    _login(client, "tryon-quota-user-b@example.com")
+    assert client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay"}).status_code == 201
+
+
+def test_get_quota_requires_authentication(client):
+    response = client.get("/tryon/quota")
+    assert response.status_code == 401
+
+
+def test_get_quota_reports_used_and_remaining(client, db_session, monkeypatch):
+    monkeypatch.setattr(tryon_service, "process_job", lambda *args, **kwargs: None)
+    _login(client, "tryon-quota-get@example.com")
+    model = _seed_catalog_model(db_session)
+
+    initial = client.get("/tryon/quota")
+    assert initial.status_code == 200
+    assert initial.json() == {"usedToday": 0, "limit": 5, "remainingToday": 5}
+
+    client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay"})
+    client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay"})
+
+    after = client.get("/tryon/quota")
+    assert after.status_code == 200
+    assert after.json() == {"usedToday": 2, "limit": 5, "remainingToday": 3}
+
+
 def test_create_job_leaves_an_already_absolute_catalog_model_image_untouched(client, db_session, monkeypatch):
     captured = {}
     monkeypatch.setattr(
