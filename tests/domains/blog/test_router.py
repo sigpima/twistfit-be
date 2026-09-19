@@ -113,6 +113,30 @@ def test_upload_url_returns_a_writable_sas_url_and_final_image_url(client, db_se
     assert body["blobPath"] in body["imageUrl"]
 
 
+def test_upload_url_accepts_webp_and_uses_a_webp_blob_extension(client, db_session):
+    client.post(
+        "/auth/register", json={"name": "Admin", "identifier": "blog-upload-webp@example.com", "password": "password123"}
+    )
+    _promote_to_admin(db_session, "blog-upload-webp@example.com")
+    client.post("/auth/login", json={"identifier": "blog-upload-webp@example.com", "password": "password123"})
+
+    response = client.post("/blog/upload-url", params={"content_type": "image/webp"})
+    assert response.status_code == 200
+    assert response.json()["blobPath"].endswith(".webp")
+
+
+def test_upload_url_rejects_unsupported_content_type(client, db_session):
+    client.post(
+        "/auth/register",
+        json={"name": "Admin", "identifier": "blog-upload-bad-type@example.com", "password": "password123"},
+    )
+    _promote_to_admin(db_session, "blog-upload-bad-type@example.com")
+    client.post("/auth/login", json={"identifier": "blog-upload-bad-type@example.com", "password": "password123"})
+
+    response = client.post("/blog/upload-url", params={"content_type": "application/pdf"})
+    assert response.status_code == 400
+
+
 def test_create_blog_post_rejects_invalid_body(client, db_session):
     client.post(
         "/auth/register", json={"name": "Admin", "identifier": "blog-admin3@example.com", "password": "password123"}

@@ -391,6 +391,19 @@ def test_upload_url_returns_a_writable_sas_url_and_final_image_url(client):
     assert body["blobPath"] in body["imageUrl"]
 
 
+def test_upload_url_accepts_webp_and_uses_a_webp_blob_extension(client):
+    _register_and_login(client, "forum-upload-webp@example.com")
+    response = client.post("/forum/upload-url", params={"content_type": "image/webp"})
+    assert response.status_code == 200
+    assert response.json()["blobPath"].endswith(".webp")
+
+
+def test_upload_url_rejects_unsupported_content_type(client):
+    _register_and_login(client, "forum-upload-bad-type@example.com")
+    response = client.post("/forum/upload-url", params={"content_type": "application/pdf"})
+    assert response.status_code == 400
+
+
 def test_create_post_accepts_an_optional_image_url(client):
     _register_and_login(client, "forum-image@example.com")
     response = client.post("/forum/posts", json={**VALID_BODY, "imageUrl": "https://example.com/a.jpg"})

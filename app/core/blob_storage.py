@@ -6,6 +6,13 @@ from azure.storage.blob import BlobSasPermissions, BlobServiceClient, ContentSet
 
 from app.core.config import settings
 
+ALLOWED_IMAGE_CONTENT_TYPES = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp",
+}
+
 
 def _client() -> BlobServiceClient:
     return BlobServiceClient.from_connection_string(settings.azure_storage_connection_string)

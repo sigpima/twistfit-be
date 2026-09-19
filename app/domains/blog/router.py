@@ -3,7 +3,12 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.blob_storage import blob_public_url, ensure_container, generate_upload_sas_url
+from app.core.blob_storage import (
+    ALLOWED_IMAGE_CONTENT_TYPES,
+    blob_public_url,
+    ensure_container,
+    generate_upload_sas_url,
+)
 from app.db.session import get_db
 from app.deps import require_admin
 from app.domains.blog import service
@@ -13,9 +18,12 @@ router = APIRouter(prefix="/blog", tags=["blog"])
 
 
 @router.post("/upload-url")
-def get_upload_url(_admin=Depends(require_admin)):
+def get_upload_url(content_type: str = "image/jpeg", _admin=Depends(require_admin)):
+    extension = ALLOWED_IMAGE_CONTENT_TYPES.get(content_type)
+    if extension is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="UNSUPPORTED_IMAGE_TYPE")
     ensure_container("blog")
-    blob_path = f"{uuid.uuid4()}.jpg"
+    blob_path = f"{uuid.uuid4()}.{extension}"
     upload_url = generate_upload_sas_url("blog", blob_path)
     return {"uploadUrl": upload_url, "blobPath": blob_path, "imageUrl": blob_public_url("blog", blob_path)}
 
