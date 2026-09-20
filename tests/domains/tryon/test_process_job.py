@@ -290,3 +290,35 @@ def test_process_job_does_not_refund_the_quota_when_flux_vto_itself_fails(db_ses
     used, remaining = tryon_service.get_tryon_quota(db_session, user.id)
     assert used == 1
     assert remaining == tryon_service.DAILY_TRYON_LIMIT - 1
+
+
+def test_process_job_refunds_the_quota_when_the_garment_download_fails_before_flux_vto_is_ever_called(
+    db_session, monkeypatch
+):
+    _seed_taxonomy(db_session)
+    user = auth_service.create_user(
+        db_session, name="Test", email="process-job-garment-download-fails@example.com", password="password123"
+    )
+    _create_item(db_session, user.id, "dam")
+    tryon_service.reserve_tryon_quota(db_session, user.id)
+    job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
+
+    def fake_download(url):
+        if url == "https://example.com/model.png":
+            return b"person-bytes"
+        raise RuntimeError("Không tải được ảnh trang phục")
+
+    flux_calls = []
+    monkeypatch.setattr(tryon_service, "ensure_container", lambda container: None)
+    monkeypatch.setattr(tryon_service, "download_bytes_from_url", fake_download)
+    monkeypatch.setattr(tryon_service, "call_flux_vto", _recording_flux_vto(flux_calls))
+
+    tryon_service.process_job(db_session, job.id, season="spring", front_image_url="https://example.com/model.png")
+
+    updated = db_session.get(TryOnJob, job.id)
+    assert updated.status == "failed"
+    assert updated.error_message == "Không tải được ảnh trang phục"
+    assert flux_calls == []
+    used, remaining = tryon_service.get_tryon_quota(db_session, user.id)
+    assert used == 0
+    assert remaining == tryon_service.DAILY_TRYON_LIMIT

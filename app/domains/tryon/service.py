@@ -121,12 +121,19 @@ def _build_vto_prompt(combo: list[WardrobeItem]) -> str:
     )
 
 
-def _apply_combo_via_flux_vto(person_bytes_list: list[bytes], combo: list[WardrobeItem]) -> list[bytes]:
-    """Merge every combo item into one garment reference (FLUX VTO's
-    documented approach for multi-garment try-on) and apply it to each
-    angle (front/side) in one FLUX VTO call per angle."""
+def _build_garment_reference(combo: list[WardrobeItem]) -> bytes:
+    """Download and, for a multi-item combo, merge every combo item into one
+    garment reference image (FLUX VTO's documented approach for multi-garment
+    try-on). Free — no paid FLUX VTO call happens here."""
     garment_bytes_list = [download_bytes_from_url(item.blob_url) for item in combo]
-    garment_reference = garment_bytes_list[0] if len(garment_bytes_list) == 1 else merge_garments_into_canvas(garment_bytes_list)
+    return garment_bytes_list[0] if len(garment_bytes_list) == 1 else merge_garments_into_canvas(garment_bytes_list)
+
+
+def _apply_combo_via_flux_vto(
+    person_bytes_list: list[bytes], combo: list[WardrobeItem], garment_reference: bytes
+) -> list[bytes]:
+    """Apply the garment reference to each angle (front/side) in one paid
+    FLUX VTO call per angle."""
     prompt = _build_vto_prompt(combo)
     return [call_flux_vto(person_bytes, garment_reference, prompt=prompt) for person_bytes in person_bytes_list]
 
@@ -186,8 +193,10 @@ def process_job(db: Session, job_id: int, season: str, front_image_url: str, sid
             flush=True,
         )
 
+        garment_reference = _build_garment_reference(combo)
+
         reached_flux = True
-        result_bytes_list = _apply_combo_via_flux_vto(person_bytes_list, combo)
+        result_bytes_list = _apply_combo_via_flux_vto(person_bytes_list, combo, garment_reference)
         print(f"[TRYON-DEBUG] process_job job_id={job_id} _apply_combo_via_flux_vto done", flush=True)
 
         job.result_front_blob_url = upload_bytes("results", f"{job.user_id}/{job.id}-front.png", result_bytes_list[0])
