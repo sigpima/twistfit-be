@@ -103,6 +103,15 @@ def list_jobs(db: Session, user_id: int) -> list[TryOnJob]:
     return db.query(TryOnJob).filter(TryOnJob.user_id == user_id).order_by(TryOnJob.created_at.desc()).all()
 
 
+def delete_job(db: Session, user_id: int, job_id: int) -> bool:
+    job = get_job(db, user_id, job_id)
+    if job is None:
+        return False
+    db.delete(job)
+    db.commit()
+    return True
+
+
 def _garment_description(item: WardrobeItem) -> str:
     clothing_types = item.attributes.get("clothing-type", [])
     category = clothing_types[0] if clothing_types else None

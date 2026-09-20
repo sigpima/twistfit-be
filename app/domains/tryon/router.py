@@ -82,3 +82,9 @@ def get_tryon_job(job_id: int, db: Session = Depends(get_db), user: User = Depen
         flush=True,
     )
     return job
+
+
+@router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_tryon_job(job_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if not service.delete_job(db, user.id, job_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy job")

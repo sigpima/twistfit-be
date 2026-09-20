@@ -126,6 +126,43 @@ def test_get_job_404s_for_another_users_job(client, db_session):
     assert response.status_code == 404
 
 
+def test_delete_job_removes_it(client, db_session):
+    _login(client, "tryon-router-delete-1@example.com")
+    model = _seed_catalog_model(db_session)
+    create_response = client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay"})
+    job_id = create_response.json()["id"]
+
+    delete_response = client.delete(f"/tryon/{job_id}")
+    assert delete_response.status_code == 204
+
+    get_response = client.get(f"/tryon/{job_id}")
+    assert get_response.status_code == 404
+
+
+def test_delete_job_requires_authentication(client):
+    response = client.delete("/tryon/1")
+    assert response.status_code == 401
+
+
+def test_delete_job_404s_for_a_job_that_does_not_exist(client):
+    _login(client, "tryon-router-delete-2@example.com")
+    response = client.delete("/tryon/999999")
+    assert response.status_code == 404
+
+
+def test_delete_job_404s_for_another_users_job(client, db_session):
+    _login(client, "tryon-router-delete-3@example.com")
+    model = _seed_catalog_model(db_session)
+    create_response = client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay"})
+    job_id = create_response.json()["id"]
+
+    client.post("/auth/logout")
+    _login(client, "tryon-router-delete-4@example.com")
+
+    response = client.delete(f"/tryon/{job_id}")
+    assert response.status_code == 404
+
+
 def _seed_catalog_model_with_side_image(db_session) -> CatalogModel:
     model = CatalogModel(
         name="Test Model",
