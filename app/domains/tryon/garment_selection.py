@@ -46,10 +46,10 @@ def _group_by_category(items: list[WardrobeItem]) -> dict[str, list[WardrobeItem
 def select_outfit_combo(items: list[WardrobeItem], season: str) -> list[WardrobeItem] | None:
     """Pick the sequence of items to apply, in application order (an
     áo khoác, if used, is always last since it goes on top of everything
-    else). Returns None when the wardrobe can't form a single complete
-    look: a áo needs a matching quần (and vice versa), and a áo khoác
-    always needs something underneath (váy, đầm, or a áo+quần pair) —
-    it's never applied on its own.
+    else). The base look must be either a đầm alone, or a áo paired with
+    a váy or a quần — a áo khoác is always optional on top of one of
+    those, and never applied on its own or over a bare váy/quần. Returns
+    None when the wardrobe can't form any such combo.
     """
     if not items:
         return None
@@ -72,15 +72,15 @@ def select_outfit_combo(items: list[WardrobeItem], season: str) -> list[Wardrobe
 
     base_combos: list[list[WardrobeItem]] = []
 
-    vay = best("vay")
-    if vay is not None:
-        base_combos.append([vay])
-
     dam = best("dam")
     if dam is not None:
         base_combos.append([dam])
 
     ao = best("ao")
+    vay = best("vay")
+    if ao is not None and vay is not None:
+        base_combos.append([ao, vay])
+
     quan = best("quan")
     if ao is not None and quan is not None:
         base_combos.append([ao, quan])
