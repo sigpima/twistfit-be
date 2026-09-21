@@ -31,7 +31,9 @@ class TryOnJob(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
-    items: Mapped[list["TryOnJobItem"]] = relationship(order_by="TryOnJobItem.sort_order")
+    items: Mapped[list["TryOnJobItem"]] = relationship(
+        order_by="TryOnJobItem.sort_order", passive_deletes=True
+    )
 
 
 class TryOnJobItem(Base):

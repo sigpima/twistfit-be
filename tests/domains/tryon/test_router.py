@@ -1,5 +1,10 @@
 from app.domains.model_catalog.models import CatalogModel
+from app.domains.taxonomy.schemas import TaxonomyGroupInput, TaxonomyValueInput
+from app.domains.taxonomy import service as taxonomy_service
 from app.domains.tryon import service as tryon_service
+from app.domains.tryon.models import TryOnJobItem
+from app.domains.wardrobe import service as wardrobe_service
+from app.domains.wardrobe.schemas import WardrobeItemCreate
 
 
 def _login(client, email: str):
@@ -137,6 +142,41 @@ def test_delete_job_removes_it(client, db_session):
 
     get_response = client.get(f"/tryon/{job_id}")
     assert get_response.status_code == 404
+
+
+def test_delete_job_removes_its_combo_items_too(client, db_session):
+    # Regression test: deleting a job that has TryOnJobItem rows attached
+    # used to raise an IntegrityError, because the ORM relationship tried to
+    # null out tryon_job_id (a NOT NULL column) on the children instead of
+    # letting the database's ON DELETE CASCADE handle them.
+    _login(client, "tryon-router-delete-5@example.com")
+    model = _seed_catalog_model(db_session)
+    create_response = client.post("/tryon", json={"catalogModelId": model.id, "occasion": "hang-ngay"})
+    job = create_response.json()
+
+    clothing_type = taxonomy_service.create_group(db_session, TaxonomyGroupInput(key="clothing-type", label="Loại quần áo"))
+    taxonomy_service.create_value(db_session, clothing_type.id, TaxonomyValueInput(key="dam", label="Đầm"))
+    style = taxonomy_service.create_group(db_session, TaxonomyGroupInput(key="style", label="Loại phong cách"))
+    taxonomy_service.create_value(db_session, style.id, TaxonomyValueInput(key="casual", label="Casual"))
+    occasion = taxonomy_service.create_group(db_session, TaxonomyGroupInput(key="occasion", label="Loại dịp"))
+    taxonomy_service.create_value(db_session, occasion.id, TaxonomyValueInput(key="hang-ngay", label="Hằng ngày"))
+
+    item = wardrobe_service.create_item(
+        db_session,
+        job["userId"],
+        WardrobeItemCreate(
+            blob_url="https://example.com/dam.png",
+            attributes={"clothing-type": ["dam"], "style": ["casual"], "occasion": ["hang-ngay"]},
+            dominant_colors=["#F2A93B"],
+        ),
+    )
+    db_session.add(TryOnJobItem(tryon_job_id=job["id"], wardrobe_item_id=item.id, sort_order=0))
+    db_session.commit()
+
+    delete_response = client.delete(f"/tryon/{job['id']}")
+    assert delete_response.status_code == 204
+
+    assert db_session.query(TryOnJobItem).filter(TryOnJobItem.tryon_job_id == job["id"]).count() == 0
 
 
 def test_delete_job_requires_authentication(client):
