@@ -29,9 +29,10 @@ Console is at `http://localhost:9001` (root credentials from `docker-compose.yml
 
 Buckets (e.g. `wardrobe`) are created on demand by the app itself
 (`ensure_container` in `app/core/blob_storage.py`), which also sets the
-public-read policy and CORS rule needed for the frontend to `PUT` directly
-to a presigned URL from the browser — nothing to pre-create or configure
-by hand.
+public-read policy needed for the frontend to `PUT` directly to a
+presigned URL from the browser — nothing to pre-create by hand. CORS is
+handled by MinIO server-wide (defaults to allowing all origins), not
+per-bucket — MinIO doesn't implement the S3 PutBucketCors API.
 
 ## Adding a new domain
 

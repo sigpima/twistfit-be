@@ -53,31 +53,21 @@ def _public_read_policy(bucket: str) -> str:
     )
 
 
-def _cors_configuration() -> dict:
-    # Lets the browser PUT directly to a presigned URL on this bucket from
-    # any origin — a valid signature is still required to write, so this
-    # only relaxes the browser-side check, not the actual authorization.
-    return {
-        "CORSRules": [
-            {
-                "AllowedOrigins": ["*"],
-                "AllowedMethods": ["GET", "PUT", "HEAD"],
-                "AllowedHeaders": ["*"],
-                "ExposeHeaders": ["ETag"],
-                "MaxAgeSeconds": 3600,
-            }
-        ]
-    }
-
-
 def ensure_container(container: str) -> None:
+    # No per-bucket CORS call here (unlike the Azure version this replaced):
+    # MinIO doesn't implement the S3 PutBucketCors API at all — both boto3
+    # and its own `mc cors set` return "NotImplemented" against it (verified
+    # against a real server, not just from docs). MinIO instead controls
+    # CORS server-wide via the `api.cors_allow_origin` config / the
+    # MINIO_API_CORS_ALLOW_ORIGIN env var, which already defaults to "*" —
+    # confirmed a real OPTIONS preflight gets a matching
+    # Access-Control-Allow-Origin back with zero extra config.
     client = _internal_client()
     try:
         client.head_bucket(Bucket=container)
     except ClientError:
         client.create_bucket(Bucket=container)
         client.put_bucket_policy(Bucket=container, Policy=_public_read_policy(container))
-        client.put_bucket_cors(Bucket=container, CORSConfiguration=_cors_configuration())
 
 
 def blob_public_url(container: str, blob_path: str) -> str:
