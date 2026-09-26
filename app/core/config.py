@@ -13,11 +13,16 @@ class Settings(BaseSettings):
     flux_api_base_url: str = "https://api.bfl.ai"
     flux_api_key: str = "dev-only-placeholder-flux-api-key"
     frontend_base_url: str = "http://localhost:3000"
-    azure_storage_connection_string: str = (
-        "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;"
-        "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
-        "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
-    )
+
+    # minio_endpoint is what the backend container uses to talk to MinIO
+    # (internal docker network address in prod, localhost in local dev).
+    # minio_public_endpoint is what browsers use for presigned uploads and
+    # for the object URLs stored in the DB — must be a publicly reachable
+    # host, since SigV4 signs the Host header (see blob_storage.py).
+    minio_endpoint: str = "http://localhost:9000"
+    minio_public_endpoint: str = "http://localhost:9000"
+    minio_access_key: str = "dev-only-minio-access-key"
+    minio_secret_key: str = "dev-only-minio-secret-key"
 
     @property
     def cors_origin_list(self) -> list[str]:

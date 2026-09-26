@@ -38,4 +38,4 @@ def test_generate_upload_sas_url_contains_a_signature():
     url = generate_upload_sas_url(CONTAINER, blob_path)
 
     assert blob_path in url
-    assert "sig=" in url
+    assert "X-Amz-Signature=" in url

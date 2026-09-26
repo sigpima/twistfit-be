@@ -387,7 +387,7 @@ def test_upload_url_returns_a_writable_sas_url_and_final_image_url(client):
     response = client.post("/forum/upload-url")
     assert response.status_code == 200
     body = response.json()
-    assert "sig=" in body["uploadUrl"]
+    assert "X-Amz-Signature=" in body["uploadUrl"]
     assert body["blobPath"] in body["imageUrl"]
 
 

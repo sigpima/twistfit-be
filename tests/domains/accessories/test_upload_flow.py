@@ -33,7 +33,7 @@ def test_upload_url_returns_a_writable_sas_url(client, db_session):
     assert response.status_code == 200
     body = response.json()
     assert "uploadUrl" in body
-    assert "sig=" in body["uploadUrl"]
+    assert "X-Amz-Signature=" in body["uploadUrl"]
     assert "blobPath" in body
 
 

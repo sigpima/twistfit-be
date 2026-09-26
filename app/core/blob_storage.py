@@ -1,8 +1,10 @@
+import json
 import time
-from datetime import datetime, timedelta, timezone
 
+import boto3
 import httpx
-from azure.storage.blob import BlobSasPermissions, BlobServiceClient, ContentSettings, generate_blob_sas
+from botocore.client import Config
+from botocore.exceptions import ClientError
 
 from app.core.config import settings
 
@@ -14,50 +16,96 @@ ALLOWED_IMAGE_CONTENT_TYPES = {
 }
 
 
-def _client() -> BlobServiceClient:
-    return BlobServiceClient.from_connection_string(settings.azure_storage_connection_string)
+def _client(endpoint: str):
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=settings.minio_access_key,
+        aws_secret_access_key=settings.minio_secret_key,
+        config=Config(signature_version="s3v4"),
+        region_name="us-east-1",
+    )
+
+
+def _internal_client():
+    return _client(settings.minio_endpoint)
+
+
+def _public_client():
+    return _client(settings.minio_public_endpoint)
+
+
+def _public_read_policy(bucket: str) -> str:
+    # Anonymous read of individual objects, no bucket listing — mirrors the
+    # Azure public_access="blob" container ACL this replaces.
+    return json.dumps(
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": "*",
+                    "Action": ["s3:GetObject"],
+                    "Resource": [f"arn:aws:s3:::{bucket}/*"],
+                }
+            ],
+        }
+    )
+
+
+def _cors_configuration() -> dict:
+    # Lets the browser PUT directly to a presigned URL on this bucket from
+    # any origin — a valid signature is still required to write, so this
+    # only relaxes the browser-side check, not the actual authorization.
+    return {
+        "CORSRules": [
+            {
+                "AllowedOrigins": ["*"],
+                "AllowedMethods": ["GET", "PUT", "HEAD"],
+                "AllowedHeaders": ["*"],
+                "ExposeHeaders": ["ETag"],
+                "MaxAgeSeconds": 3600,
+            }
+        ]
+    }
 
 
 def ensure_container(container: str) -> None:
-    # public_access="blob" allows anonymous reads of individual blobs (not
-    # container listing) — fine here since wardrobe/result images aren't
-    # sensitive; writes still require a signed SAS URL (see
-    # generate_upload_sas_url).
-    client = _client()
-    container_client = client.get_container_client(container)
-    if not container_client.exists():
-        container_client.create_container(public_access="blob")
+    client = _internal_client()
+    try:
+        client.head_bucket(Bucket=container)
+    except ClientError:
+        client.create_bucket(Bucket=container)
+        client.put_bucket_policy(Bucket=container, Policy=_public_read_policy(container))
+        client.put_bucket_cors(Bucket=container, CORSConfiguration=_cors_configuration())
 
 
 def blob_public_url(container: str, blob_path: str) -> str:
-    return _client().get_blob_client(container=container, blob=blob_path).url
+    return f"{settings.minio_public_endpoint.rstrip('/')}/{container}/{blob_path}"
 
 
 def generate_upload_sas_url(container: str, blob_path: str, expiry_minutes: int = 10) -> str:
-    client = _client()
-    sas_token = generate_blob_sas(
-        account_name=client.account_name,
-        container_name=container,
-        blob_name=blob_path,
-        account_key=client.credential.account_key,
-        permission=BlobSasPermissions(write=True, create=True),
-        expiry=datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes),
+    # Signed against the public endpoint rather than the internal one: SigV4
+    # signs the Host header, so the URL must already carry the host the
+    # browser will actually send the PUT to (see settings.minio_public_endpoint).
+    client = _public_client()
+    return client.generate_presigned_url(
+        "put_object",
+        Params={"Bucket": container, "Key": blob_path},
+        ExpiresIn=expiry_minutes * 60,
     )
-    blob_client = client.get_blob_client(container=container, blob=blob_path)
-    return f"{blob_client.url}?{sas_token}"
 
 
 def upload_bytes(container: str, blob_path: str, data: bytes, content_type: str = "image/png") -> str:
-    client = _client()
-    blob_client = client.get_blob_client(container=container, blob=blob_path)
-    blob_client.upload_blob(data, overwrite=True, content_settings=ContentSettings(content_type=content_type))
-    return blob_client.url
+    client = _internal_client()
+    client.put_object(Bucket=container, Key=blob_path, Body=data, ContentType=content_type)
+    return blob_public_url(container, blob_path)
 
 
 def download_bytes(container: str, blob_path: str) -> bytes:
-    client = _client()
-    blob_client = client.get_blob_client(container=container, blob=blob_path)
-    return blob_client.download_blob().readall()
+    client = _internal_client()
+    response = client.get_object(Bucket=container, Key=blob_path)
+    return response["Body"].read()
 
 
 _BROWSER_USER_AGENT = (
