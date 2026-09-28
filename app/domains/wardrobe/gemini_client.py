@@ -23,7 +23,7 @@ def _build_prompt(groups: list[TaxonomyGroup]) -> str:
 
 
 def _call_gemini(image_bytes: bytes, prompt: str) -> str:
-    client = genai.Client(api_key=settings.gemini_api_key, http_options=types.HttpOptions(timeout=30_000))
+    client = genai.Client(api_key=settings.gemini_api_key, http_options=types.HttpOptions(timeout=20_000))
     response = client.models.generate_content(
         model=GEMINI_MODEL,
         contents=[prompt, types.Part.from_bytes(data=image_bytes, mime_type="image/png")],

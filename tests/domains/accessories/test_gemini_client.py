@@ -47,7 +47,7 @@ def test_call_gemini_authenticates_with_the_configured_api_key_and_a_30s_timeout
 
     assert captured["api_key"] == settings.gemini_api_key
     assert isinstance(captured["http_options"], types.HttpOptions)
-    assert captured["http_options"].timeout == 30_000
+    assert captured["http_options"].timeout == 20_000
 
 
 def test_suggest_tags_parses_a_clean_json_response(monkeypatch, db_session):
