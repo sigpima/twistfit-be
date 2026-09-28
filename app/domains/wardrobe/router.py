@@ -52,7 +52,12 @@ def suggest_tags_endpoint(
     image_bytes = normalize_to_png(download_bytes("wardrobe", body.blob_path))
     try:
         attributes = suggest_tags(image_bytes, db)
-    except Exception:  # noqa: BLE001 — Gemini failing must degrade to no suggestion, not block the user
+    except Exception as error:  # noqa: BLE001 — Gemini failing must degrade to no suggestion, not block the user
+        print(
+            f"[WARDROBE-DEBUG] suggest_tags_endpoint Gemini failed, falling back to manual tagging: "
+            f"error_type={type(error).__name__} error={error!r}",
+            flush=True,
+        )
         attributes = {}
     colors = extract_dominant_colors(image_bytes)
     return {**attributes, "dominantColors": colors, "blobUrl": blob_public_url("wardrobe", body.blob_path)}

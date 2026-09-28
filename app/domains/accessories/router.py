@@ -47,7 +47,12 @@ def suggest_tags_endpoint(
     try:
         image_bytes = normalize_to_png(download_bytes("accessories", body.blob_path))
         tags = suggest_tags(image_bytes, db)
-    except Exception:  # noqa: BLE001 — any Gemini/decode failure must degrade to the fallback, not 500
+    except Exception as error:  # noqa: BLE001 — any Gemini/decode failure must degrade to the fallback, not 500
+        print(
+            f"[ACCESSORIES-DEBUG] suggest_tags_endpoint Gemini failed, falling back to manual tagging: "
+            f"error_type={type(error).__name__} error={error!r}",
+            flush=True,
+        )
         tags = _FALLBACK_SUGGESTION
     return {**tags, "blobUrl": blob_public_url("accessories", body.blob_path)}
 
