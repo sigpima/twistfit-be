@@ -50,6 +50,9 @@ def suggest_tags_endpoint(
     body: SuggestTagsRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
     image_bytes = normalize_to_png(download_bytes("wardrobe", body.blob_path))
-    attributes = suggest_tags(image_bytes, db)
+    try:
+        attributes = suggest_tags(image_bytes, db)
+    except Exception:  # noqa: BLE001 — Gemini failing must degrade to no suggestion, not block the user
+        attributes = {}
     colors = extract_dominant_colors(image_bytes)
     return {**attributes, "dominantColors": colors, "blobUrl": blob_public_url("wardrobe", body.blob_path)}

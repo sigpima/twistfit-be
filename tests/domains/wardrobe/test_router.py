@@ -13,6 +13,14 @@ def _seed_clothing_type_group(db_session):
     return group
 
 
+def _seed_required_groups(db_session):
+    _seed_clothing_type_group(db_session)
+    occasion = taxonomy_service.create_group(db_session, TaxonomyGroupInput(key="occasion", label="Dịp"))
+    taxonomy_service.create_value(db_session, occasion.id, TaxonomyValueInput(key="hang-ngay", label="Hằng ngày"))
+    style = taxonomy_service.create_group(db_session, TaxonomyGroupInput(key="style", label="Phong cách"))
+    taxonomy_service.create_value(db_session, style.id, TaxonomyValueInput(key="casual", label="Casual"))
+
+
 def test_create_item_requires_authentication(client):
     response = client.post(
         "/wardrobe/items",
@@ -26,14 +34,14 @@ def test_create_item_requires_authentication(client):
 
 
 def test_create_and_list_items(client, db_session):
-    _seed_clothing_type_group(db_session)
+    _seed_required_groups(db_session)
     _login(client, "wardrobe-router@example.com")
 
     create_response = client.post(
         "/wardrobe/items",
         json={
             "blobUrl": "https://example.com/a.png",
-            "attributes": {"clothing-type": ["ao"]},
+            "attributes": {"clothing-type": ["ao"], "occasion": ["hang-ngay"], "style": ["casual"]},
             "dominantColors": ["#ff0000"],
         },
     )
