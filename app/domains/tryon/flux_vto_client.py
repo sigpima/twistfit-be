@@ -71,6 +71,15 @@ def call_flux_vto(person_bytes: bytes, garment_bytes: bytes, prompt: str = "") -
             },
             timeout=30.0,
         )
+        if submit_response.status_code >= 400:
+            # raise_for_status()'s own message doesn't include the response
+            # body, which for a 422 is where BFL actually says which field
+            # failed validation and why — print it before raising so that's
+            # not lost.
+            print(
+                f"[TRYON-DEBUG] call_flux_vto submit error body: {submit_response.text}",
+                flush=True,
+            )
         submit_response.raise_for_status()
         polling_url = submit_response.json()["polling_url"]
         result_bytes = _poll_for_result(polling_url)
