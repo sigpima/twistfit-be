@@ -1,7 +1,7 @@
-import base64
 import json
 
-import httpx
+from google import genai
+from google.genai import types
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -9,7 +9,7 @@ from app.domains.accessories.schemas import ACCESSORY_CATEGORIES
 from app.domains.quiz_attempts.schemas import PARENT_SEASONS
 from app.domains.taxonomy import service as taxonomy_service
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 
 def _build_prompt(style_tags: list[str], occasion_tags: list[str]) -> str:
@@ -25,28 +25,12 @@ def _build_prompt(style_tags: list[str], occasion_tags: list[str]) -> str:
 
 
 def _call_gemini(image_bytes: bytes, prompt: str) -> str:
-    response = httpx.post(
-        GEMINI_URL,
-        params={"key": settings.gemini_api_key},
-        json={
-            "contents": [
-                {
-                    "parts": [
-                        {"text": prompt},
-                        {
-                            "inline_data": {
-                                "mime_type": "image/png",
-                                "data": base64.b64encode(image_bytes).decode(),
-                            }
-                        },
-                    ]
-                }
-            ]
-        },
-        timeout=30.0,
+    client = genai.Client(api_key=settings.gemini_api_key, http_options=types.HttpOptions(timeout=30_000))
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[prompt, types.Part.from_bytes(data=image_bytes, mime_type="image/png")],
     )
-    response.raise_for_status()
-    return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+    return response.text
 
 
 def suggest_tags(image_bytes: bytes, db: Session) -> dict:
