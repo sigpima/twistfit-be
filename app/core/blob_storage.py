@@ -13,6 +13,12 @@ ALLOWED_IMAGE_CONTENT_TYPES = {
     "image/png": "png",
     "image/gif": "gif",
     "image/webp": "webp",
+    # blog/forum never decode this server-side (browser PUTs straight to
+    # MinIO, images render back via <img>) — safe to allow anything modern
+    # browsers can display natively. AVIF has that support (Chrome 85+,
+    # Firefox 93+, Safari 16.4+); formats without solid native <img> support
+    # (HEIC, TIFF, BMP) are deliberately left out.
+    "image/avif": "avif",
 }
 
 

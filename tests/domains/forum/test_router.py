@@ -398,6 +398,13 @@ def test_upload_url_accepts_webp_and_uses_a_webp_blob_extension(client):
     assert response.json()["blobPath"].endswith(".webp")
 
 
+def test_upload_url_accepts_avif_and_uses_an_avif_blob_extension(client):
+    _register_and_login(client, "forum-upload-avif@example.com")
+    response = client.post("/forum/upload-url", params={"content_type": "image/avif"})
+    assert response.status_code == 200
+    assert response.json()["blobPath"].endswith(".avif")
+
+
 def test_upload_url_rejects_unsupported_content_type(client):
     _register_and_login(client, "forum-upload-bad-type@example.com")
     response = client.post("/forum/upload-url", params={"content_type": "application/pdf"})
