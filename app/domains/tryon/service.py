@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import cast, update
+from sqlalchemy import cast, func, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
@@ -112,6 +112,24 @@ def delete_job(db: Session, user_id: int, job_id: int) -> bool:
     return True
 
 
+def _usage_counts(db: Session, user_id: int) -> dict[int, int]:
+    """How many of the user's own successful ("done") combos each wardrobe
+    item has appeared in — fed into select_outfit_combo so repeat combos
+    don't keep reusing the same few pieces. Only "done" jobs count: a job
+    that failed after item selection but before FLUX VTO succeeded (e.g.
+    the API-key/network issues already hit in prod) would otherwise unfairly
+    penalize items the user never actually saw a result for.
+    """
+    rows = (
+        db.query(TryOnJobItem.wardrobe_item_id, func.count(TryOnJobItem.id))
+        .join(TryOnJob, TryOnJob.id == TryOnJobItem.tryon_job_id)
+        .filter(TryOnJob.user_id == user_id, TryOnJob.status == "done")
+        .group_by(TryOnJobItem.wardrobe_item_id)
+        .all()
+    )
+    return dict(rows)
+
+
 def _garment_description(item: WardrobeItem) -> str:
     clothing_types = item.attributes.get("clothing-type", [])
     category = clothing_types[0] if clothing_types else None
@@ -177,7 +195,8 @@ def process_job(db: Session, job_id: int, season: str, front_image_url: str, sid
         if not candidates:
             raise ValueError("Không tìm thấy món đồ phù hợp trong tủ đồ cho dịp/phong cách này")
 
-        combo = select_outfit_combo(candidates, season)
+        usage_counts = _usage_counts(db, job.user_id)
+        combo = select_outfit_combo(candidates, season, usage_counts)
         if combo is None:
             raise ValueError("Tủ đồ chưa đủ trang phục để ghép thành 1 bộ hoàn chỉnh cho dịp/phong cách này")
 

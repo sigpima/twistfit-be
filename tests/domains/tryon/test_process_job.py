@@ -292,6 +292,56 @@ def test_process_job_does_not_refund_the_quota_when_flux_vto_itself_fails(db_ses
     assert remaining == tryon_service.DAILY_TRYON_LIMIT - 1
 
 
+def test_usage_counts_only_counts_items_from_done_jobs(db_session):
+    _seed_taxonomy(db_session)
+    user = auth_service.create_user(db_session, name="Test", email="usage-counts@example.com", password="password123")
+    shirt = _create_item(db_session, user.id, "ao")
+
+    done_job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
+    done_job.status = "done"
+    db_session.add(TryOnJobItem(tryon_job_id=done_job.id, wardrobe_item_id=shirt.id, sort_order=0))
+
+    failed_job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
+    failed_job.status = "failed"
+    db_session.add(TryOnJobItem(tryon_job_id=failed_job.id, wardrobe_item_id=shirt.id, sort_order=0))
+    db_session.commit()
+
+    assert tryon_service._usage_counts(db_session, user.id) == {shirt.id: 1}
+
+
+def test_process_job_avoids_reusing_an_item_from_a_past_successful_combo(db_session, monkeypatch):
+    _seed_taxonomy(db_session)
+    user = auth_service.create_user(db_session, name="Test", email="process-job-avoid-reuse@example.com", password="password123")
+    # Same color on both shirts (a tie on color-match quality) so the only
+    # thing that can break the tie between the two runs is usage history.
+    shirt_a = _create_item(db_session, user.id, "ao")
+    shirt_b = _create_item(db_session, user.id, "ao")
+    _create_item(db_session, user.id, "quan")
+
+    _stub_common(monkeypatch, lambda person, garment, prompt="": b"result-bytes")
+    monkeypatch.setattr(tryon_service, "merge_garments_into_canvas", lambda garment_bytes_list: b"merged-canvas")
+
+    def _picked_shirt_id(job_id):
+        item = (
+            db_session.query(TryOnJobItem)
+            .filter(TryOnJobItem.tryon_job_id == job_id, TryOnJobItem.wardrobe_item_id.in_([shirt_a.id, shirt_b.id]))
+            .first()
+        )
+        return item.wardrobe_item_id
+
+    first_job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
+    tryon_service.process_job(db_session, first_job.id, season="spring", front_image_url="https://example.com/model.png")
+    assert db_session.get(TryOnJob, first_job.id).status == "done"
+    first_pick = _picked_shirt_id(first_job.id)
+
+    second_job = tryon_service.create_job(db_session, user.id, catalog_model_id=1, occasion="hang-ngay", style=None)
+    tryon_service.process_job(db_session, second_job.id, season="spring", front_image_url="https://example.com/model.png")
+    assert db_session.get(TryOnJob, second_job.id).status == "done"
+    second_pick = _picked_shirt_id(second_job.id)
+
+    assert second_pick != first_pick
+
+
 def test_process_job_refunds_the_quota_when_the_garment_download_fails_before_flux_vto_is_ever_called(
     db_session, monkeypatch
 ):
