@@ -29,6 +29,12 @@ def _call_gemini(image_bytes: bytes, prompt: str) -> str:
     response = client.models.generate_content(
         model=GEMINI_MODEL,
         contents=[prompt, types.Part.from_bytes(data=image_bytes, mime_type="image/png")],
+        # No tools/function calling here, so automatic function calling has
+        # nothing to do — disabling it silences the SDK's unconditional
+        # "use Chat.send_message instead" warning on every call.
+        config=types.GenerateContentConfig(
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
+        ),
     )
     return response.text
 
