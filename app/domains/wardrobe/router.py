@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.blob_storage import blob_public_url, download_bytes, ensure_container, generate_upload_sas_url
+from app.core.image_utils import normalize_to_png
 from app.db.session import get_db
 from app.deps import get_current_user
 from app.domains.auth.models import User
@@ -48,7 +49,7 @@ def get_upload_url(user: User = Depends(get_current_user)):
 def suggest_tags_endpoint(
     body: SuggestTagsRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
-    image_bytes = download_bytes("wardrobe", body.blob_path)
+    image_bytes = normalize_to_png(download_bytes("wardrobe", body.blob_path))
     attributes = suggest_tags(image_bytes, db)
     colors = extract_dominant_colors(image_bytes)
     return {**attributes, "dominantColors": colors, "blobUrl": blob_public_url("wardrobe", body.blob_path)}

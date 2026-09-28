@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.blob_storage import blob_public_url, download_bytes, ensure_container, generate_upload_sas_url
+from app.core.image_utils import normalize_to_png
 from app.db.session import get_db
 from app.deps import get_current_user, require_admin
 from app.domains.accessories import service
@@ -43,10 +44,10 @@ def get_upload_url(_admin: User = Depends(require_admin)):
 def suggest_tags_endpoint(
     body: SuggestTagsRequest, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
 ):
-    image_bytes = download_bytes("accessories", body.blob_path)
     try:
+        image_bytes = normalize_to_png(download_bytes("accessories", body.blob_path))
         tags = suggest_tags(image_bytes, db)
-    except Exception:  # noqa: BLE001 — any Gemini failure must degrade to the fallback, not 500
+    except Exception:  # noqa: BLE001 — any Gemini/decode failure must degrade to the fallback, not 500
         tags = _FALLBACK_SUGGESTION
     return {**tags, "blobUrl": blob_public_url("accessories", body.blob_path)}
 
