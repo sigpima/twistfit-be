@@ -35,6 +35,10 @@ def test_upload_url_returns_a_writable_sas_url(client, db_session):
     assert "uploadUrl" in body
     assert "X-Amz-Signature=" in body["uploadUrl"]
     assert "blobPath" in body
+    # Deterministic from blobPath alone (no Gemini/download involved) — the
+    # frontend needs this upfront so it can still reach manual tagging even
+    # if the later suggest-tags call itself never makes it back.
+    assert body["blobPath"] in body["blobUrl"]
 
 
 def test_suggest_tags_returns_the_gemini_result_and_blob_url(client, db_session, monkeypatch):

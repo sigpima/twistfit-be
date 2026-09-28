@@ -42,7 +42,10 @@ def get_upload_url(user: User = Depends(get_current_user)):
     ensure_container("wardrobe")
     blob_path = f"{user.id}/{uuid.uuid4()}.png"
     upload_url = generate_upload_sas_url("wardrobe", blob_path)
-    return {"uploadUrl": upload_url, "blobPath": blob_path}
+    # blob_public_url is pure string formatting from blob_path (no Gemini/
+    # download involved) — handing it back now lets the frontend still reach
+    # manual tagging even if the later suggest-tags call never makes it back.
+    return {"uploadUrl": upload_url, "blobPath": blob_path, "blobUrl": blob_public_url("wardrobe", blob_path)}
 
 
 @router.post("/items/suggest-tags")
