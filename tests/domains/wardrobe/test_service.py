@@ -168,6 +168,47 @@ def test_create_item_rejects_missing_style(db_session):
         )
 
 
+def test_delete_item_removes_it_and_returns_true(db_session):
+    _seed_required_groups(db_session)
+    user = auth_service.create_user(db_session, name="Test", email="wardrobe-svc-6@example.com", password="password123")
+    item = service.create_item(
+        db_session,
+        user.id,
+        WardrobeItemCreate(
+            blob_url="https://example.com/a.png",
+            attributes=_valid_attributes("ao"),
+            dominant_colors=["#ff0000"],
+        ),
+    )
+
+    assert service.delete_item(db_session, user.id, item.id) is True
+    assert service.get_item(db_session, user.id, item.id) is None
+
+
+def test_delete_item_returns_false_for_another_users_item(db_session):
+    _seed_required_groups(db_session)
+    user = auth_service.create_user(db_session, name="Test", email="wardrobe-svc-7@example.com", password="password123")
+    other_user = auth_service.create_user(db_session, name="Other", email="wardrobe-svc-8@example.com", password="password123")
+    item = service.create_item(
+        db_session,
+        other_user.id,
+        WardrobeItemCreate(
+            blob_url="https://example.com/a.png",
+            attributes=_valid_attributes("ao"),
+            dominant_colors=["#ff0000"],
+        ),
+    )
+
+    assert service.delete_item(db_session, user.id, item.id) is False
+    assert service.get_item(db_session, other_user.id, item.id) is not None
+
+
+def test_delete_item_returns_false_for_an_item_that_does_not_exist(db_session):
+    user = auth_service.create_user(db_session, name="Test", email="wardrobe-svc-9@example.com", password="password123")
+
+    assert service.delete_item(db_session, user.id, 999999) is False
+
+
 def test_create_item_rejects_a_required_group_present_but_empty(db_session):
     _seed_required_groups(db_session)
 

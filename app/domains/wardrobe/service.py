@@ -13,6 +13,15 @@ def get_item(db: Session, user_id: int, item_id: int) -> WardrobeItem | None:
     return db.query(WardrobeItem).filter(WardrobeItem.id == item_id, WardrobeItem.user_id == user_id).first()
 
 
+def delete_item(db: Session, user_id: int, item_id: int) -> bool:
+    item = get_item(db, user_id, item_id)
+    if item is None:
+        return False
+    db.delete(item)
+    db.commit()
+    return True
+
+
 # A clothing-type-less item is silently invisible to every future outfit
 # generation (garment_selection.py groups items by clothing-type and drops
 # anything without one) — occasion/style are what tryon jobs filter by

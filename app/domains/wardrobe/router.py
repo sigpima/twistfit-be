@@ -29,6 +29,12 @@ def get_item(item_id: int, db: Session = Depends(get_db), user: User = Depends(g
     return item
 
 
+@router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_item(item_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if not service.delete_item(db, user.id, item_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy món đồ")
+
+
 @router.post("/items", response_model=WardrobeItemResponse, status_code=status.HTTP_201_CREATED)
 def create_item(body: WardrobeItemCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     try:
