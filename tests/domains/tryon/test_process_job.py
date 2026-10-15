@@ -124,12 +124,18 @@ def test_process_job_calls_flux_vto_once_per_angle_with_the_merged_garment_refer
     assert len(calls) == 2
     assert calls[0][0] == b"person-bytes:https://example.com/model-front.png"
     assert calls[1][0] == b"person-bytes:https://example.com/model-side.png"
-    # Both angles use the same merged garment reference and prompt.
+    # Both angles use the same merged garment reference, but each gets its own angle-specific prompt.
     assert calls[0][1] == b"merged-canvas"
     assert calls[1][1] == b"merged-canvas"
-    assert calls[0][2] == calls[1][2] == (
+    assert calls[0][2] == (
         "The person of image 1, maintaining exactly their face and pose, "
-        "wearing the shirt and pants of image 2."
+        "wearing the shirt and pants of image 2. "
+        "This is a front-facing full-body photo; keep the same front-facing angle as image 1."
+    )
+    assert calls[1][2] == (
+        "The person of image 1, maintaining exactly their face and pose, "
+        "wearing the shirt and pants of image 2. "
+        "This is a side-profile photo; keep the same side-angle pose as image 1."
     )
     # Garments were merged in combo order: shirt first, then pants.
     assert merge_calls == [
@@ -157,11 +163,12 @@ def test_process_job_uses_the_single_garment_directly_without_merging(db_session
     assert len(calls) == 1
     assert calls[0][1] == b"person-bytes:https://example.com/dam.png"
     assert calls[0][2] == (
-        "The person of image 1, maintaining exactly their face and pose, wearing the dress of image 2."
+        "The person of image 1, maintaining exactly their face and pose, wearing the dress of image 2. "
+        "This is a front-facing full-body photo; keep the same front-facing angle as image 1."
     )
 
 
-def test_process_job_builds_a_prompt_listing_every_garment_jacket_last(db_session, monkeypatch):
+def test_process_job_builds_a_prompt_layering_the_jacket_over_the_base_outfit(db_session, monkeypatch):
     _seed_taxonomy(db_session)
     user = auth_service.create_user(db_session, name="Test", email="process-job-jacket-full@example.com", password="password123")
     _create_item(db_session, user.id, "ao")
@@ -179,7 +186,8 @@ def test_process_job_builds_a_prompt_listing_every_garment_jacket_last(db_sessio
     assert len(calls) == 1
     assert calls[0][2] == (
         "The person of image 1, maintaining exactly their face and pose, "
-        "wearing the shirt, pants and jacket of image 2."
+        "wearing the shirt and pants of image 2, with a jacket layered on top of it. "
+        "This is a front-facing full-body photo; keep the same front-facing angle as image 1."
     )
 
 

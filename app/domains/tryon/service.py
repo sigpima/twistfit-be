@@ -130,21 +130,38 @@ def _usage_counts(db: Session, user_id: int) -> dict[int, int]:
     return dict(rows)
 
 
+_ANGLE_CLAUSE = {
+    "front": "This is a front-facing full-body photo; keep the same front-facing angle as image 1.",
+    "side": "This is a side-profile photo; keep the same side-angle pose as image 1.",
+}
+
+
 def _garment_description(item: WardrobeItem) -> str:
     clothing_types = item.attributes.get("clothing-type", [])
     category = clothing_types[0] if clothing_types else None
     return _GARMENT_DESCRIPTION_BY_CATEGORY.get(category, "garment")
 
 
-def _build_vto_prompt(combo: list[WardrobeItem]) -> str:
-    descriptions = [_garment_description(item) for item in combo]
+def _join_descriptions(descriptions: list[str]) -> str:
     if len(descriptions) == 1:
-        joined = descriptions[0]
-    else:
-        joined = ", ".join(descriptions[:-1]) + f" and {descriptions[-1]}"
+        return descriptions[0]
+    return ", ".join(descriptions[:-1]) + f" and {descriptions[-1]}"
+
+
+def _build_vto_prompt(combo: list[WardrobeItem], angle: str) -> str:
+    # A jacket is always last in the combo (see select_outfit_combo) and
+    # always layers on top of the rest, so it's called out as a separate
+    # clause instead of being listed flat alongside the base garments.
+    has_jacket = len(combo) > 1 and combo[-1].attributes.get("clothing-type", [None])[0] == "ao-khoac"
+    base_items, jacket = (combo[:-1], combo[-1]) if has_jacket else (combo, None)
+
+    wearing = f"wearing the {_join_descriptions([_garment_description(item) for item in base_items])} of image 2"
+    if jacket is not None:
+        wearing += f", with a {_garment_description(jacket)} layered on top of it"
+
     return (
-        "The person of image 1, maintaining exactly their face and pose, "
-        f"wearing the {joined} of image 2."
+        f"The person of image 1, maintaining exactly their face and pose, {wearing}. "
+        f"{_ANGLE_CLAUSE[angle]}"
     )
 
 
@@ -160,9 +177,13 @@ def _apply_combo_via_flux_vto(
     person_bytes_list: list[bytes], combo: list[WardrobeItem], garment_reference: bytes
 ) -> list[bytes]:
     """Apply the garment reference to each angle (front/side) in one paid
-    FLUX VTO call per angle."""
-    prompt = _build_vto_prompt(combo)
-    return [call_flux_vto(person_bytes, garment_reference, prompt=prompt) for person_bytes in person_bytes_list]
+    FLUX VTO call per angle. `person_bytes_list` is always [front] or
+    [front, side], in that order (see process_job)."""
+    angles = ["front", "side"][: len(person_bytes_list)]
+    return [
+        call_flux_vto(person_bytes, garment_reference, prompt=_build_vto_prompt(combo, angle))
+        for person_bytes, angle in zip(person_bytes_list, angles)
+    ]
 
 
 def process_job(db: Session, job_id: int, season: str, front_image_url: str, side_image_url: str | None = None) -> None:
