@@ -2,11 +2,21 @@ from app.domains.tryon.garment_selection import select_outfit_combo
 from app.domains.wardrobe.models import WardrobeItem
 
 
-def _item(category: str, colors: list[str], item_id: int | None = None) -> WardrobeItem:
+def _item(
+    category: str,
+    colors: list[str],
+    item_id: int | None = None,
+    style: list[str] | None = None,
+    occasion: list[str] | None = None,
+) -> WardrobeItem:
     item = WardrobeItem(
         user_id=1,
         blob_url=f"https://example.com/{category}.png",
-        attributes={"clothing-type": [category], "style": ["casual"], "occasion": ["hang-ngay"]},
+        attributes={
+            "clothing-type": [category],
+            "style": style if style is not None else ["casual"],
+            "occasion": occasion if occasion is not None else ["hang-ngay"],
+        },
         dominant_colors=colors,
     )
     item.id = item_id
@@ -148,3 +158,25 @@ def test_a_much_better_color_match_wins_despite_being_previously_used():
     result = select_outfit_combo([used_close_shirt, fresh_far_shirt, pants], "spring", usage_counts={1: 1})
 
     assert result == [used_close_shirt, pants]
+
+
+def test_prefers_a_matching_style_and_occasion_over_a_slightly_better_color_match():
+    # Both shirts have a near-perfect color match, but one shares no
+    # style/occasion tags with the pants while the other matches on both.
+    mismatched_shirt = _item("ao", ["#F2A93B"], style=["formal"], occasion=["du-tiec"])
+    matching_shirt = _item("ao", ["#F0A93B"], style=["casual"], occasion=["hang-ngay"])
+    pants = _item("quan", ["#F2A93B"], style=["casual"], occasion=["hang-ngay"])
+
+    result = select_outfit_combo([mismatched_shirt, matching_shirt, pants], "spring")
+
+    assert result == [matching_shirt, pants]
+
+
+def test_style_and_occasion_overlap_breaks_ties_between_equal_color_combos():
+    shirt = _item("ao", ["#F2A93B"], style=["casual", "street"], occasion=["hang-ngay"])
+    good_pants = _item("quan", ["#F2A93B"], style=["casual"], occasion=["hang-ngay", "di-lam"])
+    same_color_pants = _item("quan", ["#F2A93B"], style=["formal"], occasion=["du-tiec"])
+
+    result = select_outfit_combo([shirt, good_pants, same_color_pants], "spring")
+
+    assert result == [shirt, good_pants]
